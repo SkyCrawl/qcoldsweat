@@ -1,7 +1,6 @@
 ######################################################################
-# List of available definitions (it's not necessary to uncomment them)
+# REFERENCE OF ALWAYS-AVAILABLE SYSTEM COMMANDS
 ######################################################################
-###### Command definitions #####
 #CMD_AWK="/bin/awk"
 #CMD_CAT="/bin/cat"
 #CMD_CHMOD="/bin/chmod"
@@ -34,9 +33,10 @@
 #CMD_WLOG="/sbin/write_log"
 #CMD_XARGS="/usr/bin/xargs"
 #CMD_7Z="/usr/local/sbin/7z"
-#
-###### System definitions #####
-#SYS_EXTRACT_DIR="$(pwd)"
+
+######################################################################
+# REFERENCE OF IMPORTANT SYSTEM FILES/VARIABLES
+######################################################################
 #SYS_CONFIG_DIR="/etc/config"
 #SYS_INIT_DIR="/etc/init.d"
 #SYS_STARTUP_DIR="/etc/rcS.d"
@@ -63,21 +63,31 @@
 #SYS_QPKG_CONF_FIELD_SERVICE_PIDFILE="Pid_File"
 #SYS_QPKG_CONF_FIELD_AUTHOR="Author"
 #SYS_QPKG_CONF_FIELD_RC_NUMBER="RC_Number"
-## The following variables are assigned values at run-time.
+#SYS_EXTRACT_DIR="$(pwd)"
+
+######################################################################
+# REFERENCE OF AUTO-ASSIGNED MACHINE-DEPENDENT VARIABLES
+######################################################################
 #SYS_HOSTNAME=$($CMD_HOSTNAME)
-## Data file name (one of SYS_QPKG_DATA_FILE_GZIP, SYS_QPKG_DATA_FILE_BZIP2,
-## or SYS_QPKG_DATA_FILE_7ZIP)
-#SYS_QPKG_DATA_FILE=
-## Base location.
+
+## One of: SYS_QPKG_DATA_FILE_GZIP, SYS_QPKG_DATA_FILE_BZIP2 or SYS_QPKG_DATA_FILE_7ZIP.
+#SYS_QPKG_DATA_FILE=""
+
+## Destination volume (e.g. "/share/MD0_DATA").
 #SYS_QPKG_BASE=""
-## Base location of QPKG installed packages.
+
+## Destination path for all QPKG packages ("$SYS_QPKG_BASE/.qpkg").
 #SYS_QPKG_INSTALL_PATH=""
-## Location of installed software.
+
+## Destination path for this QPKG package ("$SYS_QPKG_INSTALL_PATH/$QPKG_NAME").
 #SYS_QPKG_DIR=""
-## If the QPKG should be enabled or disabled after the installation/upgrade.
+
+## Should the QPKG be enabled or disabled after the installation/upgrade?
 #SYS_QPKG_SERVICE_ENABLED=""
+
 ## Architecture of the device the QPKG is installed on.
 #SYS_CPU_ARCH=""
+
 ## Name and location of system shares
 #SYS_PUBLIC_SHARE=""
 #SYS_PUBLIC_PATH=""
@@ -91,50 +101,204 @@
 #SYS_USB_PATH=""
 #SYS_WEB_SHARE=""
 #SYS_WEB_PATH=""
+
 ## Path to ipkg or opkg package tool if installed.
-#CMD_PKG_TOOL=
-#
+#CMD_PKG_TOOL=""
+
 ######################################################################
-# All package specific functions shall call 'err_log MSG' if an error
-# is detected that shall terminate the installation.
+# REFERENCE OF OUR VARIABLES
 ######################################################################
-#
+
+## Entware-ng dependency QPKG name.
+ENTWARE_NAME="Entware-ng"
+
+## Installation log file.
+QPKG_LOG_FILE="$SYS_QPKG_DIR/installation-log"
+
+## Coldsweat data folder.
+CS_DATA_FOLDER="/etc/config/coldsweat"
+
 ######################################################################
-# Define any package specific operations that shall be performed when
-# the package is removed.
+# REFERENCE OF OUR COMMANDS
 ######################################################################
-#PKG_PRE_REMOVE="{
-#}"
-#
-#PKG_MAIN_REMOVE="{
-#}"
-#
-#PKG_POST_REMOVE="{
-#}"
-#
+CMD_OPKG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/opkg"
+CMD_PYTHON="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/python"
+CMD_EASY_INSTALL="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/easy_install"
+CMD_PIP="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/pip"
+
 ######################################################################
-# Define any package specific initialization that shall be performed
-# before the package is installed.
+# OUR HELPER FUNCTIONS
 ######################################################################
-#pkg_init(){
-#}
-#
+# Useful tips:
+# - engine ignores any values returned by the principal functions
+# - any variables defined in 'qpkg.cfg' are automatically passed
+# Useful predefined helper functions:
+# - command: log <msg>
+#	- outputs <msg> to stdout AND system log
+# - command: err_log <msg>
+#	- outputs <msg> to stderr AND system log
+#	- alerts the web interface and prevents the installation/upgrade from proceeding
+#	- example: err_log "Data file not found." => "myApp 0.1 installation failed. Data file not found."
+# - command: get_share_path <share-name> <variable>
+#	- <variable> will now hold path to the given share
+# - command: add_qpkg_config {CONFIGURATION-FILE} {MD5SUM}
+# - command: set_qpkg_config {CONFIGURATION-FILE} {MD5SUM}
+#    - TODO
+# - command: extract_data {ARCHIVE} {DIRECTORY}
+#    - extract the TAR archive to the given directory
+#    - if directory is not specified, $SYS_QPKG_DIR will be used
+# - commands: is_equal, is_unequal, is_less_or_equal, is_less, is_greater, is_greater_or_equal
+#    - QPKG version comparison - take two arguments (strings) and return 0 if the test is successful
+
+## Usage for the 'getcfg' command:
+# Usage: getcfg section field [ -f profile ] [ -d def_value ] [ -c ] [ -u ]
+#	-f profile - Specify the path of the profile
+# 	-d def_value - Specify default value to be returned on failure
+# 	-c - Section and field names are case sensitive
+#	-u - Convert result to upper case
+
+mylog()
+{
+    $CMD_ECHO "$1" >> "$QPKG_LOG_FILE"
+}
+create_config()
+{
+    # TODO: example ($QPKG_CONFIG)
+    # QDK_CONF=/etc/config/qdk.conf
+    # if [ -f "$QDK_CONF" ]; then
+    #    $CMD_SED -i "s!\(QDK_VERSION=\).*!\1$QPKG_VER!" $QDK_CONF
+    #    $CMD_SED -i "s!\(QDK_PATH=\).*!\1$SYS_QPKG_DIR!" $QDK_CONF
+    # else
+    #    $CMD_ECHO "QDK_VERSION=$QPKG_VER" > $QDK_CONF
+    #    $CMD_ECHO "QDK_PATH=$SYS_QPKG_DIR" >> $QDK_CONF
+    # fi
+    # $CMD_CHMOD 644 $QDK_CONF
+}
+
 ######################################################################
-# Define any package specific requirement checks that shall be
-# performed before the package is installed.
+# OUR PRE-INSTALLATION INITIALIZATION
 ######################################################################
-#pkg_check_requirement(){
-#}
-#
+
+# NOTES:
+# - "$SYS_QPKG_DIR" doesn't exist yet or will still be truncated later.
+
+# First entry point.
+pkg_init()
+{
+	mylog "--- Starting initialization..."
+}
+
+# Second entry point. Supposed to check requirements here.
+pkg_check_requirement()
+{
+	# 'help test' for more information on Shell tests
+	if [ -z "$CMD_GETCFG $ENTWARE_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE" ]; then
+		err_log "Entware-ng is not installed. See 'https://forum.qnap.com/viewtopic.php?f=351&t=116737'."
+	else
+		mylog "--- Entware-ng... found"
+    fi
+}
+
 ######################################################################
-# Define any package specific operations that shall be performed when
-# the package is installed.
+# OUR INSTALLATION
 ######################################################################
-#pkg_pre_install(){
-#}
-#
-#pkg_install(){
-#}
-#
-#pkg_post_install(){
-#}
+
+# NOTES:
+# - "$SYS_QPKG_DIR" has just been created or truncated.
+
+# Third entry point.
+pkg_pre_install()
+{
+	mylog "--- Starting installation..."
+	
+	# create or truncate the log file
+    # TODO: delete file after the install?
+    > "$QPKG_LOG_FILE"
+    
+    # install basic python dependencies using Entware (QPKG python is very limited)
+    $CMD_OPKG update &> "$QPKG_LOG_FILE"
+    $CMD_OPKG install wget curl &> "$QPKG_LOG_FILE"
+    $CMD_OPKG install python python-setuptools &> "$QPKG_LOG_FILE"
+    $CMD_EASY_INSTALL pip &> "$QPKG_LOG_FILE"
+    
+    mylog "--- Finished installing basic python dependencies..."
+}
+
+# NOTES:
+# - QPKG has just been unpacked into "$SYS_QPKG_DIR".
+
+# Fourth entry point.
+pkg_install()
+{
+    # branch in regard to operation type
+    IS_UPGRADE="$CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_VERSION -f $SYS_QPKG_CONFIG_FILE"
+    if [ -z "$IS_UPGRADE" ]; then
+        # package is being installed, not upgraded/downgraded
+        
+        # extract packed software into installation directory
+        cd "$SYS_QPKG_DIR"
+        $CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
+        $CMD_TAR xf "lib/py-gnureadline-master.zip"
+        
+        # install Coldsweat dependencies using pip (python package manager)
+		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt" &> "$QPKG_LOG_FILE"
+		mylog "--- Finished installing Coldsweat dependencies..."
+
+		# install the last remaining dependency: GNU readline and a python module
+		$CMD_OPKG install libreadline &> "$QPKG_LOG_FILE"
+		mylog "--- Finished installing GNU readline library..."
+	    # $CMD_OPKG --force-overwrite install python-dev
+	    export RL_PATH="../$ENTWARE_NAME/lib"
+		$CMD_PYTHON "py-gnureadline-master/setup.py" install &> "$QPKG_LOG_FILE"
+		mylog "--- Finished installing GNU readline wrapper module for python..."
+		
+        # if still does not exist, create the data folder and copy prepared config file
+        if [ ! -d "$CS_DATA_FOLDER" ]; then
+        	$CMD_MKDIR "$CS_DATA_FOLDER"
+	        $CMD_MV "lib/config" "$CS_DATA_FOLDER/config"
+	    fi
+        
+        # patch Coldsweat to look for the config file in the right location
+        $CMD_SED -i '' -E "s/config = load_config\(os\.path\.join\(installation_dir, 'etc\/config'\)\)/config = load_config\('\/etc\/config\/coldsweat\/config'\)/g" "coldsweat-0.9.6/coldsweat/__init__.py"
+        
+        # cleanup and finish
+        $CMD_RM -rf "py-gnureadline-master"
+        mylog "--- Finished installation."
+    else
+        # package is being upgraded/downgraded, not installed
+        err_log "Upgrade or downgrade not supported yet."
+    fi
+}
+
+# NOTES:
+# - obsolete files from the previous installation have just been removed
+# - icons have just been copied from QPKG to "/home/httpd/RSS/images/"
+# - symbolic links for the service program have just been created in "/etc/init.d", "/etc/rcS.d" and "/etc/rcK.d"
+# - the QPKG has just been registered in "/etc/config/qpkg.conf"
+
+pkg_post_install()
+{
+	# TODO: this is upgrade dependent
+	mylog "--- No post installation action to do..."
+}
+
+######################################################################
+# OUR UN-INSTALLATION
+######################################################################
+
+# NOTES:
+# - The following functions have a generic implementation included in the engine.
+# - Variables must be used as "\$VAR" (otherwise, their values will be replaced when the uninstall script is created).
+# - Command substitutions ("$(command)" or "`command`") must be escaped, otherwise they will be executed before the script is created.
+
+# PKG_PRE_REMOVE="
+# {
+# }"
+# PKG_MAIN_REMOVE="
+# {
+    # remove system-wide configuration file
+    # $CMD_RM -f $QPKG_CONFIG
+# }"
+# PKG_POST_REMOVE="
+# {
+# }"
