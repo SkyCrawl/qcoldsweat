@@ -289,7 +289,6 @@ pkg_install()
 	#
 	
 	# extract Coldsweat ahead of time
-	$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
 	$CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
 	
 	# branch in regard to operation type
@@ -338,6 +337,7 @@ pkg_install()
 		$CMD_PIP install "gnureadline"
 		
 		# install Coldsweat dependencies
+		$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
 		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt"
 		
         # cleanup
@@ -349,16 +349,21 @@ pkg_install()
 	    # TODO: how to pick up any error codes and explicitly fail so that the installation is not successful when it actually fails?
 	    
 	    # first install new Coldsweat dependencies
+	    $CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
 		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt"
 	    
 	    # then upgrade the previous ones
+	    $CMD_ECHO -e "\n[Upgrading Coldsweat dependencies...]"
 		$CMD_PIP install -r --upgrade "coldsweat-0.9.6/requirements.txt"
 		
 		# and finally, upgrade the database
+		$CMD_ECHO -e "\n[Upgrading Coldsweat database...]"
 		$CMD_PYTHON "coldsweat-0.9.6/sweat.py" upgrade
     fi
     
 	# always patch Coldsweat to look for the config file in an independent location
+	$CMD_ECHO -e "\n[Installing Coldsweat...]"
+	$CMD_ECHO -e "--- this section may be empty"
 	$CMD_SED -i '' -E "s/config = load_config\(os\.path\.join\(installation_dir, 'etc\/config'\)\)/config = load_config\('\/etc\/coldsweat\/config'\)/g" "coldsweat-0.9.6/coldsweat/__init__.py"
 	
 	# always replace Coldsweat configuration file
@@ -384,8 +389,6 @@ pkg_install()
 
 pkg_post_install()
 {
-	# TODO: this is upgrade dependent
-	$CMD_ECHO -e "--- No post installation action to do..."
 	restore_state
 }
 
