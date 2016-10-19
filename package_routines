@@ -82,7 +82,7 @@
 ## Destination path for this QPKG package ("$SYS_QPKG_INSTALL_PATH/$QPKG_NAME").
 #SYS_QPKG_DIR=""
 
-## Should the QPKG be enabled or disabled after the installation/upgrade?
+## Should the QPKG be enabled or disabled after the installation/upgrade? By default, 'FALSE' for installation and the previous state for upgrade operation. If 'TRUE' and start fails, the QPKG is disabled.
 #SYS_QPKG_SERVICE_ENABLED=""
 
 ## Architecture of the device the QPKG is installed on.
@@ -113,66 +113,76 @@
 ENTWARE_NAME="Entware-ng"
 
 ## Installation log file.
-QPKG_LOG_FILE="$SYS_QPKG_DIR/installation-log"
+QPKG_LOG_FILE="/var/log/coldsweat-install-tmp.log"
+QPKG_LOG_FILE_FINAL="/var/log/coldsweat-install.log"
 
 ## Coldsweat data folder.
-CS_DATA_FOLDER="/etc/config/coldsweat"
+CS_DATA_FOLDER="/etc/coldsweat"
 
 ######################################################################
 # REFERENCE OF OUR COMMANDS
 ######################################################################
 CMD_OPKG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/opkg"
+CMD_PATCH="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/patch"
+CMD_MAKE="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/make"
+CMD_LDCONFIG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/ldconfig"
 CMD_PYTHON="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/python"
 CMD_EASY_INSTALL="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/easy_install"
 CMD_PIP="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/pip"
+CMD_UNZIP="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/unzip"
 
 ######################################################################
-# OUR HELPER FUNCTIONS
+# TIPS & HELPERS
 ######################################################################
-# Useful tips:
+## Useful tips:
+# - 'help test' for more information on Shell tests
 # - engine ignores any values returned by the principal functions
-# - any variables defined in 'qpkg.cfg' are automatically passed
-# Useful predefined helper functions:
+# - all variables defined in 'qpkg.cfg' are automatically passed
+## Useful predefined helper functions:
 # - command: log <msg>
 #	- outputs <msg> to stdout AND system log
+# - command: warn_log <msg>
+#	- outputs <msg> to stderr AND system log
 # - command: err_log <msg>
 #	- outputs <msg> to stderr AND system log
 #	- alerts the web interface and prevents the installation/upgrade from proceeding
 #	- example: err_log "Data file not found." => "myApp 0.1 installation failed. Data file not found."
 # - command: get_share_path <share-name> <variable>
-#	- <variable> will now hold path to the given share
-# - command: add_qpkg_config {CONFIGURATION-FILE} {MD5SUM}
-# - command: set_qpkg_config {CONFIGURATION-FILE} {MD5SUM}
-#    - TODO
-# - command: extract_data {ARCHIVE} {DIRECTORY}
-#    - extract the TAR archive to the given directory
-#    - if directory is not specified, $SYS_QPKG_DIR will be used
+#	- <variable> will now hold real path to the given share (e.g. not '/share/<share-name>')
+# - command: add_qpkg_config <config-file> <md5sum>
+#	- add a configuration file to '$SYS_QPKG_CONFIG_FILE', if not already present
+#	- <md5sum> refers to the file included in the package (should be 0 for dynamically generated files)
+# - command: set_qpkg_config <config-file> <md5sum>
+#	- update the <md5sum> of an existing configuration file
+# - command: extract_data <archive> <directory>
+#    - extract the given TAR archive to the given directory ('$SYS_QPKG_DIR' by default)
 # - commands: is_equal, is_unequal, is_less_or_equal, is_less, is_greater, is_greater_or_equal
 #    - QPKG version comparison - take two arguments (strings) and return 0 if the test is successful
 
-## Usage for the 'getcfg' command:
+## Usage for the '/sbin/getcfg' command:
 # Usage: getcfg section field [ -f profile ] [ -d def_value ] [ -c ] [ -u ]
 #	-f profile - Specify the path of the profile
 # 	-d def_value - Specify default value to be returned on failure
 # 	-c - Section and field names are case sensitive
 #	-u - Convert result to upper case
 
-mylog()
+restore_state()
 {
-    $CMD_ECHO "$1" >> "$QPKG_LOG_FILE"
+	# restore original PATH
+	export PATH="$PATH_BCKP"
+	
+	# before we restore the original IO state, copy the log (it'll get truncated)
+	$CMD_CP "$QPKG_LOG_FILE" "$QPKG_LOG_FILE_FINAL"
+	
+	# and finally, restore the original IO state
+	exec &>/dev/stdout
 }
-create_config()
+
+my_exit()
 {
-    # TODO: example ($QPKG_CONFIG)
-    # QDK_CONF=/etc/config/qdk.conf
-    # if [ -f "$QDK_CONF" ]; then
-    #    $CMD_SED -i "s!\(QDK_VERSION=\).*!\1$QPKG_VER!" $QDK_CONF
-    #    $CMD_SED -i "s!\(QDK_PATH=\).*!\1$SYS_QPKG_DIR!" $QDK_CONF
-    # else
-    #    $CMD_ECHO "QDK_VERSION=$QPKG_VER" > $QDK_CONF
-    #    $CMD_ECHO "QDK_PATH=$SYS_QPKG_DIR" >> $QDK_CONF
-    # fi
-    # $CMD_CHMOD 644 $QDK_CONF
+	# restore the original IO state
+	restore_state
+	err_log "$1"
 }
 
 ######################################################################
@@ -180,22 +190,35 @@ create_config()
 ######################################################################
 
 # NOTES:
-# - "$SYS_QPKG_DIR" doesn't exist yet or will still be truncated later.
+# - "$SYS_QPKG_DIR" hasn't been created yet if we're not upgrading
 
 # First entry point.
 pkg_init()
 {
-	mylog "--- Starting initialization..."
+	# create or truncate the log file
+    > "$QPKG_LOG_FILE"
+    
+    # redirect stdout and stderr of this script to the above log file
+    # Note: eventually, restore the original state with 'exec &>/dev/tty'
+    exec >> "$QPKG_LOG_FILE"
+	exec 2>&1
+	
+	# time to start logging
+	$CMD_ECHO -e "[Initializing...]"
+	
+	# backup the current PATH (we will likely change it later on)
+	export PATH_BCKP="$PATH"
+	$CMD_ECHO -e "--- PATH backed up"
 }
 
 # Second entry point. Supposed to check requirements here.
 pkg_check_requirement()
 {
-	# 'help test' for more information on Shell tests
-	if [ -z "$CMD_GETCFG $ENTWARE_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE" ]; then
+	# the same requirement is specified in 'qpkg.cfg' but it doesn't hurt to really make sure
+	if [ -z "$($CMD_GETCFG $ENTWARE_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)" ]; then
 		err_log "Entware-ng is not installed. See 'https://forum.qnap.com/viewtopic.php?f=351&t=116737'."
 	else
-		mylog "--- Entware-ng... found"
+		$CMD_ECHO -e "--- Entware-ng... found"
     fi
 }
 
@@ -204,70 +227,153 @@ pkg_check_requirement()
 ######################################################################
 
 # NOTES:
-# - "$SYS_QPKG_DIR" has just been created or truncated.
+# - "$SYS_QPKG_DIR" has just been created if we're not upgrading
+# - data has just been extracted from '$SYS_QPKG_DATA_FILE', if specified
+# - configuration files have just been handled
 
 # Third entry point.
 pkg_pre_install()
 {
-	mylog "--- Starting installation..."
+	$CMD_ECHO -e "\n[Installing basic python dependencies...]"
 	
-	# create or truncate the log file
-    # TODO: delete file after the install?
-    > "$QPKG_LOG_FILE"
-    
     # install basic python dependencies using Entware (QPKG python is very limited)
-    $CMD_OPKG update &> "$QPKG_LOG_FILE"
-    $CMD_OPKG install wget curl &> "$QPKG_LOG_FILE"
-    $CMD_OPKG install python python-setuptools &> "$QPKG_LOG_FILE"
-    $CMD_EASY_INSTALL pip &> "$QPKG_LOG_FILE"
-    
-    mylog "--- Finished installing basic python dependencies..."
+    $CMD_OPKG update
+    $CMD_OPKG install wget curl
+    $CMD_OPKG install python python-setuptools
+    $CMD_OPKG --force-overwrite install python-dev
+    $CMD_EASY_INSTALL pip
 }
 
 # NOTES:
-# - QPKG has just been unpacked into "$SYS_QPKG_DIR".
+# - shared and platform-dependent files have just been copied to "$SYS_QPKG_DIR"
 
 # Fourth entry point.
 pkg_install()
 {
-    # branch in regard to operation type
-    IS_UPGRADE="$CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_VERSION -f $SYS_QPKG_CONFIG_FILE"
-    if [ -z "$IS_UPGRADE" ]; then
-        # package is being installed, not upgraded/downgraded
-        
-        # extract packed software into installation directory
-        cd "$SYS_QPKG_DIR"
-        $CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
-        $CMD_TAR xf "lib/py-gnureadline-master.zip"
-        
-        # install Coldsweat dependencies using pip (python package manager)
-		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt" &> "$QPKG_LOG_FILE"
-		mylog "--- Finished installing Coldsweat dependencies..."
+	cd "$SYS_QPKG_DIR"
 
-		# install the last remaining dependency: GNU readline and a python module
-		$CMD_OPKG install libreadline &> "$QPKG_LOG_FILE"
-		mylog "--- Finished installing GNU readline library..."
-	    # $CMD_OPKG --force-overwrite install python-dev
-	    export RL_PATH="../$ENTWARE_NAME/lib"
-		$CMD_PYTHON "py-gnureadline-master/setup.py" install &> "$QPKG_LOG_FILE"
-		mylog "--- Finished installing GNU readline wrapper module for python..."
+	# for the below installation, we have to temporarily alter the PATH...
+	export PATH="/opt/bin:$PATH"
+	$CMD_ECHO -e "--- '/opt/bin' prepended to PATH ahead of time"
+	
+	# GENERAL NOTE TO THE WHOLE INSTALLATION PROCESS
+	# It is very straightforward, except that Coldsweat requires the 'readline' python module which
+	# is absent from all Python distributions for QNAP that I know of. It can be added manually via
+	# 'pip install gnureadline' but that requires either a statically compiled GNU readline library
+	# on the system AND respective include headers (absent on QNAP devices), OR a proper compiler.
+	# Possible solutions are:
+	#
+	# 1) Cross-compile GNU readline and include it in the QPKG. Personally, I refuse the hassle of
+	# cross-compilation though. Sorry :).
+	#
+	# 2) Getting a proper compiler on the target device - all that takes is installing 'Entware-ng'
+	# on your QNAP. Entware-ng is the most up-to-date package manager for NAS devices and we could
+	# have a go with its beta 'gcc' package. Although Entware-ng's Wiki page for 'gcc' says that
+	# "static linking is not supported, there are no static libraries", I managed to successfully
+	# link and compile the above PIP module to GNU readline static library that I found in QNAP's
+	# Qsirch QPKG. God knows what version that is, however, and such a 'random' procedure is highly
+	# nasty - we will compile our own version instead.
+	# If Entware-ng's 'gcc' is really not capable of producing working static libraries, I could
+	# still fork the above PIP module to require shared libraries instead.
+	#
+	# 3) As a followup to option #2, Entware-ng's 'libreadline' package could be used to skip
+	# compiling the library BUT Entware-ng packages do not contain include headers, by design. We
+	# can either create them locally (with a compiler) or download them:
+	# 	wget -qO- http://pkg.entware.net/binaries/armv7/include/include.tar.gz
+	# Notice the 'armv7' in the URL. QPKG installation script would then have to determine the
+	# correct architecture from 'uname -a'.
+	#
+	# Obviously, #2 and #3 are the best. #3 seems convenient and short but still requires a fork
+	# of the PIP module. As such, I'm going with the second option.
+	# SEE ALSO: https://github.com/Entware-ng/Entware-ng/wiki/Using-gcc-(native-compilation)
+	#
+	
+	# extract Coldsweat ahead of time
+	$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
+	$CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
+	
+	# branch in regard to operation type
+    IS_UPGRADE="$($CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)"
+    if [ -z "$IS_UPGRADE" ]; then
+    	# if package is being installed, not upgraded/downgraded...
+		# install GNU grep (recent-enough GNU readline requires a better grep than QTS ships with)
+		$CMD_ECHO -e "\n[Installing GNU grep...]"
+		$CMD_OPKG install gcc busybox ldd make gawk sed
+		$CMD_TAR xf "lib/grep-2.26.tar.gz"
+		cd "grep-2.26"
+		# ./configure --prefix="$(pwd)/install"
+		./configure --prefix="/usr/local"
+		$CMD_MAKE
+		$CMD_MAKE install
+		cd ..
 		
-        # if still does not exist, create the data folder and copy prepared config file
-        if [ ! -d "$CS_DATA_FOLDER" ]; then
-        	$CMD_MKDIR "$CS_DATA_FOLDER"
-	        $CMD_MV "lib/config" "$CS_DATA_FOLDER/config"
-	    fi
-        
-        # patch Coldsweat to look for the config file in the right location
-        $CMD_SED -i '' -E "s/config = load_config\(os\.path\.join\(installation_dir, 'etc\/config'\)\)/config = load_config\('\/etc\/config\/coldsweat\/config'\)/g" "coldsweat-0.9.6/coldsweat/__init__.py"
-        
-        # cleanup and finish
-        $CMD_RM -rf "py-gnureadline-master"
-        mylog "--- Finished installation."
+        # check for existing installation of GNU readline on the system, disregarding Entware
+        $CMD_OPKG install ldconfig
+        LIB_RL_FOUND="$(ldconfig -p | grep libreadline)"
+        LIB_HIST_FOUND="$(ldconfig -p | grep libhistory)"
+        if [ -z "$LIB_RL_FOUND" ] || [ -z "$LIB_HIST_FOUND" ]; then
+        	$CMD_ECHO -e "\n[Installing GNU readline...]"
+        	$CMD_OPKG install patch
+			$CMD_TAR xf "lib/readline/readline-6.3.tar.gz"
+			cd "readline-6.3"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-001"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-002"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-003"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-004"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-005"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-006"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-007"
+			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-008"
+			./configure --prefix="/usr/local"
+			$CMD_MAKE
+			$CMD_LDCONFIG	# sometimes, make install may issue a request to run this
+			$CMD_MAKE install
+			cd ..
+		else
+			$CMD_ECHO -e "--- GNU readline... found"
+		fi
+		
+        # install the 'readline' python module for GNU readline
+        $CMD_ECHO -e "\n[Installing 'readline' python module...]"
+		$CMD_PIP install "gnureadline"
+		
+		# install Coldsweat dependencies
+		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt"
+		
+        # cleanup
+        $CMD_RM -rf "grep-2.26" "readline-6.3"
     else
-        # package is being upgraded/downgraded, not installed
-        err_log "Upgrade or downgrade not supported yet."
+	    # if package is being upgraded/downgraded, not installed...
+	    # Note: should we need to upgrade GNU readline or GNU grep, a future revision will do that...
+	    # TODO: what if the user messes up and (e.g.) removes something important from Entware?
+	    # TODO: how to pick up any error codes and explicitly fail so that the installation is not successful when it actually fails?
+	    
+	    # first install new Coldsweat dependencies
+		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt"
+	    
+	    # then upgrade the previous ones
+		$CMD_PIP install -r --upgrade "coldsweat-0.9.6/requirements.txt"
+		
+		# and finally, upgrade the database
+		$CMD_PYTHON "coldsweat-0.9.6/sweat.py" upgrade
     fi
+    
+	# always patch Coldsweat to look for the config file in an independent location
+	$CMD_SED -i '' -E "s/config = load_config\(os\.path\.join\(installation_dir, 'etc\/config'\)\)/config = load_config\('\/etc\/coldsweat\/config'\)/g" "coldsweat-0.9.6/coldsweat/__init__.py"
+	
+	# always replace Coldsweat configuration file
+	if [ ! -d "$CS_DATA_FOLDER" ]; then
+		$CMD_MKDIR "$CS_DATA_FOLDER"
+	fi
+	# use external folder so that the config and database survive uninstallation
+	$CMD_RM "$CS_DATA_FOLDER/config"
+	$CMD_MV "lib/coldsweat-config" "$CS_DATA_FOLDER/config"
+	
+	# cleanup
+	$CMD_RM -rf "lib"
+	
+	# and finally, we're done...
+	$CMD_ECHO -e "\nInstallation finished."
 }
 
 # NOTES:
@@ -279,7 +385,8 @@ pkg_install()
 pkg_post_install()
 {
 	# TODO: this is upgrade dependent
-	mylog "--- No post installation action to do..."
+	$CMD_ECHO -e "--- No post installation action to do..."
+	restore_state
 }
 
 ######################################################################
