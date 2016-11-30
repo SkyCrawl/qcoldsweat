@@ -82,8 +82,8 @@
 ## Destination path for this QPKG package ("$SYS_QPKG_INSTALL_PATH/$QPKG_NAME").
 #SYS_QPKG_DIR=""
 
-## Should the QPKG be enabled or disabled after the installation/upgrade? By default, 'FALSE' for installation and the previous state for upgrade operation. If 'TRUE' and start fails, the QPKG is disabled.
-#SYS_QPKG_SERVICE_ENABLED=""
+## Should the QPKG be enabled or disabled after the installation/upgrade? By default, 'TRUE' for installation and the previous state for upgrade operation. If 'TRUE' and start fails, the QPKG is disabled.
+#SYS_QPKG_SERVICE_ENABLED="TRUE"
 
 ## Architecture of the device the QPKG is installed on.
 #SYS_CPU_ARCH=""
@@ -114,10 +114,15 @@ ENTWARE_NAME="Entware-ng"
 
 ## Installation log file.
 QPKG_LOG_FILE="/var/log/coldsweat-install-tmp.log"
-QPKG_LOG_FILE_FINAL="/var/log/coldsweat-install.log"
 
 ## Coldsweat data folder.
-CS_DATA_FOLDER="/etc/coldsweat"
+CS_DATA_FOLDER="/home/coldsweat"
+CS_DB_FILE="/home/coldsweat/database"
+
+## Default Coldsweat username.
+CS_DEFAULT_USERNAME="coldsweat"
+CS_DEFAULT_PASSWORD="coldsweat"
+CS_DEFAULT_EMAIL="coldsweat@my-qnap.com"
 
 ######################################################################
 # REFERENCE OF OUR COMMANDS
@@ -171,8 +176,8 @@ restore_state()
 	# restore original PATH
 	export PATH="$PATH_BCKP"
 	
-	# before we restore the original IO state, copy the log (it'll get truncated)
-	$CMD_CP "$QPKG_LOG_FILE" "$QPKG_LOG_FILE_FINAL"
+	# move the temporary log
+	$CMD_MV "$QPKG_LOG_FILE" "$SYS_QPKG_DIR/install.log"
 	
 	# and finally, restore the original IO state
 	exec &>/dev/stdout
@@ -239,9 +244,14 @@ pkg_pre_install()
     # install basic python dependencies using Entware (QPKG python is very limited)
     $CMD_OPKG update
     $CMD_OPKG install wget curl
-    $CMD_OPKG install python python-setuptools
+    $CMD_OPKG install python python-setuptools python-mysql
     $CMD_OPKG --force-overwrite install python-dev
     $CMD_EASY_INSTALL pip
+    
+    # at the very least, this is needed to install psycopg2 (see later)
+    # Note: hopefully, it won't break interoperability with OPKG python...
+    # $CMD_PIP install --upgrade pip
+	# $CMD_PIP install --upgrade setuptools
 }
 
 # NOTES:
@@ -273,23 +283,21 @@ pkg_install()
 	# link and compile the above PIP module to GNU readline static library that I found in QNAP's
 	# Qsirch QPKG. God knows what version that is, however, and such a 'random' procedure is highly
 	# nasty - we will compile our own version instead.
-	# If Entware-ng's 'gcc' is really not capable of producing working static libraries, I could
-	# still fork the above PIP module to require shared libraries instead.
+	# At first, I thought that Entware-ng's 'gcc' was not capable of producing working static libraries
+	# but I was wrong.
 	#
 	# 3) As a followup to option #2, Entware-ng's 'libreadline' package could be used to skip
-	# compiling the library BUT Entware-ng packages do not contain include headers, by design. We
-	# can either create them locally (with a compiler) or download them:
+	# compiling the library BUT Entware-ng packages do not contain include headers, by design, and
+	# they are essential for compiling the 'readline' python module. We can either create them locally
+	# (with a compiler) or download them:
 	# 	wget -qO- http://pkg.entware.net/binaries/armv7/include/include.tar.gz
-	# Notice the 'armv7' in the URL. QPKG installation script would then have to determine the
+	# Take note of the 'armv7' in the URL! QPKG installation script would then have to determine the
 	# correct architecture from 'uname -a'.
 	#
-	# Obviously, #2 and #3 are the best. #3 seems convenient and short but still requires a fork
-	# of the PIP module. As such, I'm going with the second option.
+	# Obviously, #2 and #3 are good enough. Despite longer installation time, I'm going with the
+	# second option as it's less work for me.
 	# SEE ALSO: https://github.com/Entware-ng/Entware-ng/wiki/Using-gcc-(native-compilation)
 	#
-	
-	# extract Coldsweat ahead of time
-	$CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
 	
 	# branch in regard to operation type
     IS_UPGRADE="$($CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)"
@@ -305,6 +313,9 @@ pkg_install()
 		$CMD_MAKE
 		$CMD_MAKE install
 		cd ..
+		
+		# cleanup
+		$CMD_RM -rf "grep-2.26"
 		
         # check for existing installation of GNU readline on the system, disregarding Entware
         $CMD_OPKG install ldconfig
@@ -328,51 +339,80 @@ pkg_install()
 			$CMD_LDCONFIG	# sometimes, make install may issue a request to run this
 			$CMD_MAKE install
 			cd ..
+			
+			# cleanup
+			$CMD_RM -rf "readline-6.3"
 		else
 			$CMD_ECHO -e "--- GNU readline... found"
 		fi
-		
-        # install the 'readline' python module for GNU readline
-        $CMD_ECHO -e "\n[Installing 'readline' python module...]"
-		$CMD_PIP install "gnureadline"
-		
-		# install Coldsweat dependencies
-		$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
-		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt"
-		
-        # cleanup
-        $CMD_RM -rf "grep-2.26" "readline-6.3"
-    else
+	fi
+	
+    # always install the 'readline' python module for GNU readline
+	$CMD_ECHO -e "\n[Installing 'readline' python module...]"
+	$CMD_PIP install "gnureadline"
+	
+	# always install Coldsweat dependencies
+	$CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
+	$CMD_MV "coldsweat-0.9.6" "coldsweat"
+	$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
+	$CMD_PIP install -r "coldsweat/requirements.txt"
+
+	if [ ! -z "$IS_UPGRADE" ]; then
 	    # if package is being upgraded/downgraded, not installed...
 	    # Note: should we need to upgrade GNU readline or GNU grep, a future revision will do that...
-	    # TODO: what if the user messes up and (e.g.) removes something important from Entware?
-	    # TODO: how to pick up any error codes and explicitly fail so that the installation is not successful when it actually fails?
 	    
-	    # first install new Coldsweat dependencies
-	    $CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
-		$CMD_PIP install -r "coldsweat-0.9.6/requirements.txt"
-	    
-	    # then upgrade the previous ones
+	    # upgrade Coldsweat dependencies (not done by installation)
 	    $CMD_ECHO -e "\n[Upgrading Coldsweat dependencies...]"
-		$CMD_PIP install -r --upgrade "coldsweat-0.9.6/requirements.txt"
+		$CMD_PIP install -r --upgrade "coldsweat/requirements.txt"
 		
-		# and finally, upgrade the database
+		# upgrade the database
 		$CMD_ECHO -e "\n[Upgrading Coldsweat database...]"
-		$CMD_PYTHON "coldsweat-0.9.6/sweat.py" upgrade
+		$CMD_PYTHON "coldsweat/sweat.py" upgrade
     fi
     
-	# always patch Coldsweat to look for the config file in an independent location
-	$CMD_ECHO -e "\n[Installing Coldsweat...]"
-	$CMD_ECHO -e "--- this section may be empty"
-	$CMD_SED -i '' -E "s/config = load_config\(os\.path\.join\(installation_dir, 'etc\/config'\)\)/config = load_config\('\/etc\/coldsweat\/config'\)/g" "coldsweat-0.9.6/coldsweat/__init__.py"
+	# always install the 'psycopg2' python module to support PostgreSQL database
+	# Note: if the PostgreSQL QPKG is not installed, 'psycopg2' installation will fail. But that's ok :).
+	$CMD_ECHO -e "\n[Installing 'psycopg2' python module...]"
+	# patch the environment to find 'libpg' and 'pq_config' that come with PostgreSQL
+	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$SYS_QPKG_INSTALL_PATH/PostgreSQL/lib"
+	export PATH="$PATH:$SYS_QPKG_INSTALL_PATH/PostgreSQL/bin"
+	# install
+	$CMD_PIP install psycopg2
 	
-	# always replace Coldsweat configuration file
+	# install Coldsweat configuration file
+	$CMD_ECHO -e "\n[Configuring and patching Coldsweat...]"
+	$CMD_ECHO -e "--- Preparing configuration file"
 	if [ ! -d "$CS_DATA_FOLDER" ]; then
 		$CMD_MKDIR "$CS_DATA_FOLDER"
 	fi
-	# use external folder so that the config and database survive uninstallation
-	$CMD_RM "$CS_DATA_FOLDER/config"
+	# Note: use external folder so that important files may survive NAS restart or QPKG uninstall
+	# Note: if the external configuration file already exists, back it up using a random sequence
+	if [ -f "$CS_DATA_FOLDER/config" ]; then
+		RAND_SEQ=$(openssl rand -hex 4)
+		$CMD_MV "$CS_DATA_FOLDER/config" "$CS_DATA_FOLDER/config.$RAND_SEQ"
+	fi
 	$CMD_MV "lib/coldsweat-config" "$CS_DATA_FOLDER/config"
+	
+	# always patch Coldsweat to look for the external configuration file
+	$CMD_ECHO -e "--- Patching Coldsweat to find configuration file"
+	$CMD_SED -i "s:os.path.join(installation_dir, 'etc/config'):'$CS_DATA_FOLDER/config':" "coldsweat/coldsweat/__init__.py"
+	
+	# TEMPORARY: patch Coldsweat to redirect access log to stdout instead of stderr
+	$CMD_ECHO -e "--- Patching Coldsweat to redirect access log to stdout instead of stderr"
+	$CMD_RM "coldsweat/coldsweat/commands.py"
+	$CMD_MV "lib/coldsweat-commands.py" "coldsweat/coldsweat/commands.py"
+
+	# everything's ready to init Coldsweat and create a default account now
+	if [ -z "$IS_UPGRADE" ] && [ ! -f "$CS_DB_FILE" ]; then
+		# if package is being installed (not upgraded/downgraded) AND the database doesn't exist yet
+		$CMD_ECHO -e "--- Creating default account"
+		# Note: no leading white-spaces on lines between the EOF boundaries
+		$CMD_PYTHON "coldsweat/sweat.py" setup -u "$CS_DEFAULT_USERNAME" <<EOF
+$CS_DEFAULT_EMAIL
+$CS_DEFAULT_PASSWORD
+$CS_DEFAULT_PASSWORD
+EOF
+	fi
 	
 	# cleanup
 	$CMD_RM -rf "lib"

@@ -1,6 +1,6 @@
 [database]
 
-connection_url: sqlite:////etc/coldsweat/database
+connection_url: sqlite:////home/coldsweat/database
 ;connection_url: mysql://username:password@localhost/coldsweat
 ;connection_url: postgresql://username:password@localhost/coldsweat
 
@@ -12,7 +12,7 @@ connection_url: sqlite:////etc/coldsweat/database
 level: INFO
 
 ; Comment to avoid logging to a file altogether
-filename: /etc/coldsweat/log
+filename: /home/coldsweat/log-app
 
 [fetcher]
 
