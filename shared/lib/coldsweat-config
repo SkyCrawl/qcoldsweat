@@ -1,6 +1,6 @@
 [database]
 
-connection_url: sqlite:////home/coldsweat/database
+connection_url: sqlite:///<sqlite-abs-path>
 ;connection_url: mysql://username:password@localhost/coldsweat
 ;connection_url: postgresql://username:password@localhost/coldsweat
 
@@ -9,10 +9,10 @@ connection_url: sqlite:////home/coldsweat/database
 [log]
 
 ; Values are: DEBUG (more verbose), INFO, WARNING, ERROR, CRITICAL (less verbose)
-level: INFO
+level: DEBUG
 
 ; Comment to avoid logging to a file altogether
-filename: /home/coldsweat/log-app
+filename: <log-abs-path>
 
 [fetcher]
 
@@ -29,7 +29,7 @@ max_history: 30
 ;timeout: 10
 
 ; Number of processes to spawn during the feed fetching, 0 disables multiprocessing
-processes: 2
+processes: 0
 
 [web]
 

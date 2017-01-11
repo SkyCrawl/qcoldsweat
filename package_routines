@@ -115,10 +115,6 @@ ENTWARE_NAME="Entware-ng"
 ## Installation log file.
 QPKG_LOG_FILE="/var/log/coldsweat-install-tmp.log"
 
-## Coldsweat data folder.
-CS_DATA_FOLDER="/home/coldsweat"
-CS_DB_FILE="/home/coldsweat/database"
-
 ## Default Coldsweat username.
 CS_DEFAULT_USERNAME="coldsweat"
 CS_DEFAULT_PASSWORD="coldsweat"
@@ -127,13 +123,14 @@ CS_DEFAULT_EMAIL="coldsweat@my-qnap.com"
 ######################################################################
 # REFERENCE OF OUR COMMANDS
 ######################################################################
+CMD_EASY_INSTALL="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/easy_install"
+CMD_GIT="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/git"
+CMD_LDCONFIG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/ldconfig"
 CMD_OPKG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/opkg"
 CMD_PATCH="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/patch"
-CMD_MAKE="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/make"
-CMD_LDCONFIG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/ldconfig"
-CMD_PYTHON="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/python"
-CMD_EASY_INSTALL="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/easy_install"
 CMD_PIP="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/pip"
+CMD_PYTHON="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/python"
+CMD_MAKE="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/make"
 CMD_UNZIP="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/unzip"
 
 ######################################################################
@@ -246,12 +243,23 @@ pkg_pre_install()
     $CMD_OPKG install wget curl
     $CMD_OPKG install python python-setuptools python-mysql
     $CMD_OPKG --force-overwrite install python-dev
+    
+    # patch setuptools not to complain ('bad interpreter: No such file or directory')
+    $CMD_SED -i "s:^\#\!.*$:#\!/opt/bin/python2:" /opt/bin/easy_install
+	$CMD_SED -i "s:^\#\!.*$:#\!/opt/bin/python2.7:" /opt/bin/easy_install-2.7
+
+	# continue
     $CMD_EASY_INSTALL pip
     
-    # at the very least, this is needed to install psycopg2 (see later)
-    # Note: hopefully, it won't break interoperability with OPKG python...
-    # $CMD_PIP install --upgrade pip
-	# $CMD_PIP install --upgrade setuptools
+    # upgrade setuptools/pip if we're upgrading the QPKG
+    # Note: hopefully, this won't break interoperability with OPKG python...
+	IS_UPGRADE="$($CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)"
+    if [ ! -z "$IS_UPGRADE" ]; then
+    	# package is being upgraded/downgraded...
+    	# Note: with this, the risk of an issue is increased (like the 'bad interpreter' above)
+	    $CMD_PIP install --upgrade setuptools
+	    $CMD_PIP install --upgrade pip
+    fi
 }
 
 # NOTES:
@@ -261,130 +269,122 @@ pkg_pre_install()
 pkg_install()
 {
 	cd "$SYS_QPKG_DIR"
-
+	
+	# WARNING: stupid and buggy QDK doesn't set the 'SYS_QPKG_BASE' variable
+	CS_DATA_FOLDER="$SYS_QPKG_INSTALL_PATH/../coldsweat"
+	if [ ! -d "$CS_DATA_FOLDER" ]; then
+		$CMD_MKDIR "$CS_DATA_FOLDER"
+	fi
+	PREFIX_BUILD="$CS_DATA_FOLDER/required_software"
+	if [ ! -d "$PREFIX_BUILD" ]; then
+		$CMD_MKDIR "$PREFIX_BUILD"
+	fi
+	
 	# for the below installation, we have to temporarily alter the PATH...
 	export PATH="/opt/bin:$PATH"
 	$CMD_ECHO -e "--- '/opt/bin' prepended to PATH ahead of time"
 	
 	# GENERAL NOTE TO THE WHOLE INSTALLATION PROCESS
-	# It is very straightforward, except that Coldsweat requires the 'readline' python module which
-	# is absent from all Python distributions for QNAP that I know of. It can be added manually via
-	# 'pip install gnureadline' but that requires either a statically compiled GNU readline library
-	# on the system AND respective include headers (absent on QNAP devices), OR a proper compiler.
-	# Possible solutions are:
+	# It is very straightforward, except that Coldsweat requires the 'gunreadline' python module
+	# which in turn requires either of:
+	# 1) A statically compiled GNU readline library on the system AND respective include headers.
+	# 2) A proper compiler installed on the system.
+	#
+	# The 'gnureadline' python module is absent from all Python distributions for QNAP that I know
+	# of and 'Entware-ng' is no exception. #1 is absent from QNAP devices as well and entware's
+	# packages (including 'libreadline', which is what we need) only contain shared libraries (not
+	# static), by design, and even don't contain respective include headers needed to compile the
+	# 'gnureadline' python module. Include headers for entware packages can be installed separately
+	# though.
+	#
+	# So, possible solutions are:
 	#
 	# 1) Cross-compile GNU readline and include it in the QPKG. Personally, I refuse the hassle of
 	# cross-compilation though. Sorry :).
 	#
-	# 2) Getting a proper compiler on the target device - all that takes is installing 'Entware-ng'
-	# on your QNAP. Entware-ng is the most up-to-date package manager for NAS devices and we could
-	# have a go with its beta 'gcc' package. Although Entware-ng's Wiki page for 'gcc' says that
-	# "static linking is not supported, there are no static libraries", I managed to successfully
-	# link and compile the above PIP module to GNU readline static library that I found in QNAP's
-	# Qsirch QPKG. God knows what version that is, however, and such a 'random' procedure is highly
-	# nasty - we will compile our own version instead.
-	# At first, I thought that Entware-ng's 'gcc' was not capable of producing working static libraries
-	# but I was wrong.
+	# 2) Getting a proper compiler on your QNAP - all that takes is installing entware and the 'gcc'
+	# package (beta). Entware doesn't compile statically but I managed to successfully link the
+	# required python module to a GNU readline static library that I found in QNAP's Qsirch QPKG. God
+	# knows what version that is, however, and such a 'random' procedure is highly nasty. At first,
+	# I thought that entware's 'gcc' was not capable of producing working static libraries but luckily,
+	# I was wrong and that's going to be our direction :).
 	#
-	# 3) As a followup to option #2, Entware-ng's 'libreadline' package could be used to skip
-	# compiling the library BUT Entware-ng packages do not contain include headers, by design, and
-	# they are essential for compiling the 'readline' python module. We can either create them locally
-	# (with a compiler) or download them:
-	# 	wget -qO- http://pkg.entware.net/binaries/armv7/include/include.tar.gz
-	# Take note of the 'armv7' in the URL! QPKG installation script would then have to determine the
-	# correct architecture from 'uname -a'.
+	# 3) Entware's 'libreadline' package could, theoretically, be used to skip compiling GNU readline
+	# BUT that requires a fork of the 'readline' python module.
+	# UPDATE: as it turns out, even #2 requires a fork of the module because of hardcoded paths and
+	# the fact that standard PATH only points to startup-loaded system folders (/bin etc.) and the RAM
+	# disk (/usr) which has incredibly limited capacity. Thank you QNAP...
 	#
-	# Obviously, #2 and #3 are good enough. Despite longer installation time, I'm going with the
-	# second option as it's less work for me.
+	# #2 and #3 are obviously good enough. #2 will result in longer installation time but that's the one
+	# I'm going with as it's less work for me.
 	# SEE ALSO: https://github.com/Entware-ng/Entware-ng/wiki/Using-gcc-(native-compilation)
 	#
 	
-	# branch in regard to operation type
-    IS_UPGRADE="$($CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)"
-    if [ -z "$IS_UPGRADE" ]; then
-    	# if package is being installed, not upgraded/downgraded...
-		# install GNU grep (recent-enough GNU readline requires a better grep than QTS ships with)
-		$CMD_ECHO -e "\n[Installing GNU grep...]"
-		$CMD_OPKG install gcc busybox ldd make gawk sed
-		$CMD_TAR xf "lib/grep-2.26.tar.gz"
-		cd "grep-2.26"
-		# ./configure --prefix="$(pwd)/install"
-		./configure --prefix="/usr/local"
+	# install a full version of GNU readline, unless already present
+	$CMD_ECHO -e "\n[Installing GNU readline...]"
+	if [ ! -f "$PREFIX_BUILD/lib/libreadline.a" ]; then
+		$CMD_ECHO -e "--- Installing dependencies & utilities"
+		$CMD_OPKG install make gcc gawk sed patch grep
+		$CMD_TAR -xf "lib/readline/readline-6.3.tar.gz"
+		cd "readline-6.3"
+		
+		$CMD_ECHO -e "--- Patching the library"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-001"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-002"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-003"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-004"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-005"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-006"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-007"
+		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-008"
+		
+		$CMD_ECHO -e "--- Configuring the library"
+		./configure --prefix="$PREFIX_BUILD"
+		
+		$CMD_ECHO -e "--- Compiling the library"
 		$CMD_MAKE
+
+		$CMD_ECHO -e "--- Installing the library"
 		$CMD_MAKE install
-		cd ..
-		
+
 		# cleanup
-		$CMD_RM -rf "grep-2.26"
-		
-        # check for existing installation of GNU readline on the system, disregarding Entware
-        $CMD_OPKG install ldconfig
-        LIB_RL_FOUND="$(ldconfig -p | grep libreadline)"
-        LIB_HIST_FOUND="$(ldconfig -p | grep libhistory)"
-        if [ -z "$LIB_RL_FOUND" ] || [ -z "$LIB_HIST_FOUND" ]; then
-        	$CMD_ECHO -e "\n[Installing GNU readline...]"
-        	$CMD_OPKG install patch
-			$CMD_TAR xf "lib/readline/readline-6.3.tar.gz"
-			cd "readline-6.3"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-001"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-002"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-003"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-004"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-005"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-006"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-007"
-			$CMD_PATCH -p0 -t -i "../lib/readline/readline63-008"
-			./configure --prefix="/usr/local"
-			$CMD_MAKE
-			$CMD_LDCONFIG	# sometimes, make install may issue a request to run this
-			$CMD_MAKE install
-			cd ..
-			
-			# cleanup
-			$CMD_RM -rf "readline-6.3"
-		else
-			$CMD_ECHO -e "--- GNU readline... found"
-		fi
+		cd ..
+		$CMD_RM -rf "readline-6.3"
+	else
+		$CMD_ECHO -e "--- Skipping... found it installed already"
 	fi
 	
-    # always install the 'readline' python module for GNU readline
+    # install the 'readline' python module for GNU readline
+    # Note: future versions of this QPKG will take care of upgrade...
 	$CMD_ECHO -e "\n[Installing 'readline' python module...]"
-	$CMD_PIP install "gnureadline"
+	$CMD_TAR -xf "lib/python-gnureadline-master.tar.gz"
+	cd "python-gnureadline-master"
+	export RL_PATH="$PREFIX_BUILD"
+	$CMD_PYTHON "setup.py" install
+	cd ..
 	
-	# always install Coldsweat dependencies
+	# cleanup
+	$CMD_RM -rf "python-gnureadline-master"
+	
+	# install/upgrade Coldsweat dependencies
 	$CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
 	$CMD_MV "coldsweat-0.9.6" "coldsweat"
 	$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
 	$CMD_PIP install -r "coldsweat/requirements.txt"
-
 	if [ ! -z "$IS_UPGRADE" ]; then
-	    # if package is being upgraded/downgraded, not installed...
-	    # Note: should we need to upgrade GNU readline or GNU grep, a future revision will do that...
-	    
-	    # upgrade Coldsweat dependencies (not done by installation)
+		# upgrade Coldsweat's dependencies
 	    $CMD_ECHO -e "\n[Upgrading Coldsweat dependencies...]"
 		$CMD_PIP install -r --upgrade "coldsweat/requirements.txt"
 		
+		# TODO: this is wrong... the new Coldsweat is NOT patched...
 		# upgrade the database
-		$CMD_ECHO -e "\n[Upgrading Coldsweat database...]"
-		$CMD_PYTHON "coldsweat/sweat.py" upgrade
+		# $CMD_ECHO -e "\n[Upgrading Coldsweat database...]"
+		# $CMD_PYTHON "coldsweat/sweat.py" upgrade
     fi
     
-	# always install the 'psycopg2' python module to support PostgreSQL database
-	# Note: if the PostgreSQL QPKG is not installed, 'psycopg2' installation will fail. But that's ok :).
-	$CMD_ECHO -e "\n[Installing 'psycopg2' python module...]"
-	# patch the environment to find 'libpg' and 'pq_config' that come with PostgreSQL
-	export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$SYS_QPKG_INSTALL_PATH/PostgreSQL/lib"
-	export PATH="$PATH:$SYS_QPKG_INSTALL_PATH/PostgreSQL/bin"
-	# install
-	$CMD_PIP install psycopg2
-	
 	# install Coldsweat configuration file
 	$CMD_ECHO -e "\n[Configuring and patching Coldsweat...]"
-	$CMD_ECHO -e "--- Preparing configuration file"
-	if [ ! -d "$CS_DATA_FOLDER" ]; then
-		$CMD_MKDIR "$CS_DATA_FOLDER"
-	fi
+	$CMD_ECHO -e "--- Preparing the configuration file"
 	# Note: use external folder so that important files may survive NAS restart or QPKG uninstall
 	# Note: if the external configuration file already exists, back it up using a random sequence
 	if [ -f "$CS_DATA_FOLDER/config" ]; then
@@ -393,8 +393,13 @@ pkg_install()
 	fi
 	$CMD_MV "lib/coldsweat-config" "$CS_DATA_FOLDER/config"
 	
-	# always patch Coldsweat to look for the external configuration file
-	$CMD_ECHO -e "--- Patching Coldsweat to find configuration file"
+	# patch Coldsweat's configuration file point to the right locations:
+	$CMD_ECHO -e "--- Patching the configuration file"
+	$CMD_SED -i "s:<sqlite-abs-path>:$CS_DATA_FOLDER/sqlite.db:" "$CS_DATA_FOLDER/config"
+	$CMD_SED -i "s:<log-abs-path>:$CS_DATA_FOLDER/log-app:" "$CS_DATA_FOLDER/config"
+	
+	# patch Coldsweat to look for the external configuration file
+	$CMD_ECHO -e "--- Patching Coldsweat to find the configuration file"
 	$CMD_SED -i "s:os.path.join(installation_dir, 'etc/config'):'$CS_DATA_FOLDER/config':" "coldsweat/coldsweat/__init__.py"
 	
 	# TEMPORARY: patch Coldsweat to redirect access log to stdout instead of stderr
@@ -403,7 +408,7 @@ pkg_install()
 	$CMD_MV "lib/coldsweat-commands.py" "coldsweat/coldsweat/commands.py"
 
 	# everything's ready to init Coldsweat and create a default account now
-	if [ -z "$IS_UPGRADE" ] && [ ! -f "$CS_DB_FILE" ]; then
+	if [ -z "$IS_UPGRADE" ] && [ ! -f "$CS_DATA_FOLDER/sqlite.db" ]; then
 		# if package is being installed (not upgraded/downgraded) AND the database doesn't exist yet
 		$CMD_ECHO -e "--- Creating default account"
 		# Note: no leading white-spaces on lines between the EOF boundaries
