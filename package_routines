@@ -111,6 +111,7 @@
 
 ## Entware-ng dependency QPKG name.
 ENTWARE_NAME="Entware-ng"
+CNF_CHKSM_NAME="config-checksum"
 
 ## Installation log file.
 QPKG_LOG_FILE="/var/log/coldsweat-install-tmp.log"
@@ -240,6 +241,7 @@ pkg_pre_install()
 	
     # install basic python dependencies using Entware (QPKG python is very limited)
     $CMD_OPKG update
+    $CMD_OPKG upgrade
     $CMD_OPKG install wget curl
     $CMD_OPKG install python python-setuptools python-mysql
     $CMD_OPKG --force-overwrite install python-dev
@@ -270,19 +272,21 @@ pkg_install()
 {
 	cd "$SYS_QPKG_DIR"
 	
-	# WARNING: stupid and buggy QDK doesn't set the 'SYS_QPKG_BASE' variable
-	CS_DATA_FOLDER="$SYS_QPKG_INSTALL_PATH/../coldsweat"
+	# WARNING: stupid & buggy QDK doesn't set the 'SYS_QPKG_BASE' variable...
+	CS_DATA_FOLDER="$SYS_QPKG_INSTALL_PATH/.coldsweat"
 	if [ ! -d "$CS_DATA_FOLDER" ]; then
 		$CMD_MKDIR "$CS_DATA_FOLDER"
 	fi
-	PREFIX_BUILD="$CS_DATA_FOLDER/required_software"
+	
+	# prepare a uniform installation path for all third-party software...
+	PREFIX_BUILD="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/local"
 	if [ ! -d "$PREFIX_BUILD" ]; then
 		$CMD_MKDIR "$PREFIX_BUILD"
 	fi
 	
 	# for the below installation, we have to temporarily alter the PATH...
-	export PATH="/opt/bin:$PATH"
-	$CMD_ECHO -e "--- '/opt/bin' prepended to PATH ahead of time"
+	export PATH="/opt/bin:/opt/sbin:$PATH"
+	$CMD_ECHO -e "--- '/opt/bin:/opt/sbin' prepended to PATH ahead of time"
 	
 	# GENERAL NOTE TO THE WHOLE INSTALLATION PROCESS
 	# It is very straightforward, except that Coldsweat requires the 'gunreadline' python module
@@ -325,18 +329,18 @@ pkg_install()
 	if [ ! -f "$PREFIX_BUILD/lib/libreadline.a" ]; then
 		$CMD_ECHO -e "--- Installing dependencies & utilities"
 		$CMD_OPKG install make gcc gawk sed patch grep
-		$CMD_TAR -xf "lib/readline/readline-6.3.tar.gz"
+		$CMD_TAR -xf "lib/readline-6.3/readline-6.3.tar.gz"
 		cd "readline-6.3"
 		
 		$CMD_ECHO -e "--- Patching the library"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-001"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-002"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-003"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-004"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-005"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-006"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-007"
-		$CMD_PATCH -p0 -t -i "../lib/readline/readline63-008"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-001"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-002"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-003"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-004"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-005"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-006"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-007"
+		$CMD_PATCH -p0 -t -i "../lib/readline-6.3/readline63-008"
 		
 		$CMD_ECHO -e "--- Configuring the library"
 		./configure --prefix="$PREFIX_BUILD"
@@ -357,43 +361,40 @@ pkg_install()
     # install the 'readline' python module for GNU readline
     # Note: future versions of this QPKG will take care of upgrade...
 	$CMD_ECHO -e "\n[Installing 'readline' python module...]"
-	$CMD_TAR -xf "lib/python-gnureadline-master.tar.gz"
-	cd "python-gnureadline-master"
+	$CMD_TAR -xf "lib/python-gnureadline-mod.tar.gz"
+	cd "python-gnureadline-mod"
 	export RL_PATH="$PREFIX_BUILD"
 	$CMD_PYTHON "setup.py" install
 	cd ..
 	
 	# cleanup
-	$CMD_RM -rf "python-gnureadline-master"
+	$CMD_RM -rf "python-gnureadline-mod"
 	
 	# install/upgrade Coldsweat dependencies
-	$CMD_TAR xf "lib/coldsweat-0.9.6.tar.gz"
-	$CMD_MV "coldsweat-0.9.6" "coldsweat"
+	$CMD_TAR xf "lib/coldsweat-0.9.7.tar.gz"
+	$CMD_MV "coldsweat-0.9.7" "coldsweat"
 	$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
 	$CMD_PIP install -r "coldsweat/requirements.txt"
 	if [ ! -z "$IS_UPGRADE" ]; then
-		# upgrade Coldsweat's dependencies
+		# if package is being upgraded/downgraded, upgrade Coldsweat's dependencies
 	    $CMD_ECHO -e "\n[Upgrading Coldsweat dependencies...]"
 		$CMD_PIP install -r --upgrade "coldsweat/requirements.txt"
-		
-		# TODO: this is wrong... the new Coldsweat is NOT patched...
-		# upgrade the database
-		# $CMD_ECHO -e "\n[Upgrading Coldsweat database...]"
-		# $CMD_PYTHON "coldsweat/sweat.py" upgrade
     fi
-    
+
 	# install Coldsweat configuration file
 	$CMD_ECHO -e "\n[Configuring and patching Coldsweat...]"
 	$CMD_ECHO -e "--- Preparing the configuration file"
 	# Note: use external folder so that important files may survive NAS restart or QPKG uninstall
 	# Note: if the external configuration file already exists, back it up using a random sequence
+	CNF_NEW="config"
 	if [ -f "$CS_DATA_FOLDER/config" ]; then
 		RAND_SEQ=$(openssl rand -hex 4)
-		$CMD_MV "$CS_DATA_FOLDER/config" "$CS_DATA_FOLDER/config.$RAND_SEQ"
+		CNF_NEW="config.$RAND_SEQ"
+		$CMD_MV "$CS_DATA_FOLDER/config" "$CS_DATA_FOLDER/$CNF_NEW"
 	fi
 	$CMD_MV "lib/coldsweat-config" "$CS_DATA_FOLDER/config"
 	
-	# patch Coldsweat's configuration file point to the right locations:
+	# patch Coldsweat's configuration file point to the right locations
 	$CMD_ECHO -e "--- Patching the configuration file"
 	$CMD_SED -i "s:<sqlite-abs-path>:$CS_DATA_FOLDER/sqlite.db:" "$CS_DATA_FOLDER/config"
 	$CMD_SED -i "s:<log-abs-path>:$CS_DATA_FOLDER/log-app:" "$CS_DATA_FOLDER/config"
@@ -402,12 +403,27 @@ pkg_install()
 	$CMD_ECHO -e "--- Patching Coldsweat to find the configuration file"
 	$CMD_SED -i "s:os.path.join(installation_dir, 'etc/config'):'$CS_DATA_FOLDER/config':" "coldsweat/coldsweat/__init__.py"
 	
-	# TEMPORARY: patch Coldsweat to redirect access log to stdout instead of stderr
-	$CMD_ECHO -e "--- Patching Coldsweat to redirect access log to stdout instead of stderr"
-	$CMD_RM "coldsweat/coldsweat/commands.py"
-	$CMD_MV "lib/coldsweat-commands.py" "coldsweat/coldsweat/commands.py"
-
-	# everything's ready to init Coldsweat and create a default account now
+	# sometimes, we could also upgrade the database automatically
+	if [ ! -z "$IS_UPGRADE" ]; then
+		# if package is being upgraded/downgraded...
+		CNF_CHKSM_NOW=$($CMD_MD5SUM "$CS_DATA_FOLDER/config" | dd count=32 bs=1 2>/dev/null)
+		CNF_CHKSM_OLD=$($CMD_CAT "$CS_DATA_FOLDER/$CNF_CHKSM_NAME")
+		if [ "$CNF_CHKSM_NOW" = "$CNF_CHKSM_OLD" ]; then
+			# if user HASN'T made any modifications to the config file...
+			$CMD_ECHO -e "\n[Upgrading Coldsweat's database...]"
+			# upgrade the database
+			$CMD_PYTHON "coldsweat/sweat.py" upgrade
+			# and get rid of the previous config file
+			if [ "$CNF_NEW" != "config" ]; then
+				$CMD_RM "$CS_DATA_FOLDER/$CNF_NEW"
+			fi
+		else
+			# if user HAS made Modifications to the config file...
+			warn_log "Configuration file needs to be upgraded manually. See 'https://github.com/SkyCrawl/QColdsweat'."
+		fi
+	fi
+	
+	# everything's ready to (maybe) init Coldsweat and create a default account
 	if [ -z "$IS_UPGRADE" ] && [ ! -f "$CS_DATA_FOLDER/sqlite.db" ]; then
 		# if package is being installed (not upgraded/downgraded) AND the database doesn't exist yet
 		$CMD_ECHO -e "--- Creating default account"
@@ -418,6 +434,18 @@ $CS_DEFAULT_PASSWORD
 $CS_DEFAULT_PASSWORD
 EOF
 	fi
+	
+	# announce the final phase
+	$CMD_ECHO -e "\n[Finalizing installation...]"
+
+	# backup a checksum of the configuration file now (useful when we're upgrading)
+	$CMD_ECHO -e "--- Backing up configuration file checksum"
+	$CMD_MD5SUM "$CS_DATA_FOLDER/config" | dd count=32 bs=1 2>/dev/null > "$CS_DATA_FOLDER/$CNF_CHKSM_NAME"
+	
+	# patch Entware-ng to always find our own installed software
+	$CMD_ECHO -e "--- Patching Entware-ng to find our own compiled/installed software"
+	# Note: use single quotes here so that '$PATH' will not be interpreted
+	$CMD_SED -i 's|^export PATH=.*$|export PATH=/opt/bin:/opt/sbin:/opt/local/bin:$PATH|' "$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/etc/profile"
 	
 	# cleanup
 	$CMD_RM -rf "lib"
