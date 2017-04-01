@@ -25,8 +25,8 @@ ENTWARE_ROOT="$(/sbin/getcfg $ENTWARE_NAME Install_Path -f $QPKG_CONF)"
 
 ## Coldsweat data folder.
 CS_DIST_ROOT="$QPKG_ROOT/coldsweat"
-CS_DATA_FOLDER="$QPKG_ROOT/../../coldsweat"
-CD_LOG_ACCESS="$CS_DATA_FOLDER/log-access"
+CS_DATA_FOLDER="$QPKG_ROOT/../.coldsweat"
+CS_LOG_ACCESS="$CS_DATA_FOLDER/log-access"
 CS_PID_FILE="$CS_DATA_FOLDER/pid"
 
 # declare commands
@@ -118,7 +118,7 @@ case "$1" in
 		if [ "$(is_coldsweat_running)" == "0" ]; then
 			# v0.9.6 contains a bug that prevents Coldsweat from being launched from a different folder...
 			cd "$CS_DIST_ROOT"
-			$CMD_PYTHON "sweat.py" serve -r -p "$QPKG_PORT" &> "$CD_LOG_ACCESS" &
+			$CMD_PYTHON "sweat.py" serve -r -p "$QPKG_PORT" &> "$CS_LOG_ACCESS" &
 			echo $! > "$CS_PID_FILE"
 		else
 			echo "$APP_NAME is already running."

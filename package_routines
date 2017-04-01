@@ -124,15 +124,14 @@ CS_DEFAULT_EMAIL="coldsweat@my-qnap.com"
 ######################################################################
 # REFERENCE OF OUR COMMANDS
 ######################################################################
-CMD_EASY_INSTALL="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/easy_install"
-CMD_GIT="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/git"
-CMD_LDCONFIG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/ldconfig"
 CMD_OPKG="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/opkg"
 CMD_PATCH="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/patch"
 CMD_PIP="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/pip"
 CMD_PYTHON="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/python"
 CMD_MAKE="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/make"
 CMD_UNZIP="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/unzip"
+
+FILE_GCC_ENV="$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/bin/gcc_env.sh"
 
 ######################################################################
 # TIPS & HELPERS
@@ -237,31 +236,15 @@ pkg_check_requirement()
 # Third entry point.
 pkg_pre_install()
 {
-	$CMD_ECHO -e "\n[Installing basic python dependencies...]"
+	$CMD_ECHO -e "\n[Installing basic tools & python...]"
 	
     # install basic python dependencies using Entware (QPKG python is very limited)
     $CMD_OPKG update
     $CMD_OPKG upgrade
     $CMD_OPKG install wget curl
-    $CMD_OPKG install python python-setuptools python-mysql
+    $CMD_OPKG install python python-pip python-mysql
     $CMD_OPKG --force-overwrite install python-dev
-    
-    # patch setuptools not to complain ('bad interpreter: No such file or directory')
-    $CMD_SED -i "s:^\#\!.*$:#\!/opt/bin/python2:" /opt/bin/easy_install
-	$CMD_SED -i "s:^\#\!.*$:#\!/opt/bin/python2.7:" /opt/bin/easy_install-2.7
-
-	# continue
-    $CMD_EASY_INSTALL pip
-    
-    # upgrade setuptools/pip if we're upgrading the QPKG
-    # Note: hopefully, this won't break interoperability with OPKG python...
-	IS_UPGRADE="$($CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)"
-    if [ ! -z "$IS_UPGRADE" ]; then
-    	# package is being upgraded/downgraded...
-    	# Note: with this, the risk of an issue is increased (like the 'bad interpreter' above)
-	    $CMD_PIP install --upgrade setuptools
-	    $CMD_PIP install --upgrade pip
-    fi
+    $CMD_PIP install --upgrade setuptools
 }
 
 # NOTES:
@@ -270,6 +253,9 @@ pkg_pre_install()
 # Fourth entry point.
 pkg_install()
 {
+	# determine whether we're upgrading the package...
+	IS_UPGRADE="$($CMD_GETCFG $QPKG_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)"
+	
 	cd "$SYS_QPKG_DIR"
 	
 	# WARNING: stupid & buggy QDK doesn't set the 'SYS_QPKG_BASE' variable...
@@ -324,11 +310,24 @@ pkg_install()
 	# SEE ALSO: https://github.com/Entware-ng/Entware-ng/wiki/Using-gcc-(native-compilation)
 	#
 	
+	$CMD_ECHO -e "\n[Prepare to install GNU readline...]"
+	
+	# dependencies and recommended tools for gcc to run correctly:
+	$CMD_ECHO -e "--- Installing tools for GCC to run correctly"
+	$CMD_OPKG install busybox ldd gawk grep sed
+
+	# gcc and things we'll need afterwards
+	$CMD_ECHO -e "--- Installing compilation tools"
+	$CMD_OPKG install patch gcc make
+	
+	# prepare environment for gcc:
+	$CMD_ECHO -e "--- Preparing environment for compilation"
+	source "$FILE_GCC_ENV"
+	
 	# install a full version of GNU readline, unless already present
 	$CMD_ECHO -e "\n[Installing GNU readline...]"
 	if [ ! -f "$PREFIX_BUILD/lib/libreadline.a" ]; then
 		$CMD_ECHO -e "--- Installing dependencies & utilities"
-		$CMD_OPKG install make gcc gawk sed patch grep
 		$CMD_TAR -xf "lib/readline-6.3/readline-6.3.tar.gz"
 		cd "readline-6.3"
 		
@@ -344,6 +343,9 @@ pkg_install()
 		
 		$CMD_ECHO -e "--- Configuring the library"
 		./configure --prefix="$PREFIX_BUILD"
+		
+		# append "-fPIC" to CFLAGS... otherwise, we won't be able to compile the python module (see below)
+		$CMD_SED -i "s/^CFLAGS = \(.*\)$/CFLAGS = \1 -fPIC/" Makefile
 		
 		$CMD_ECHO -e "--- Compiling the library"
 		$CMD_MAKE
@@ -361,14 +363,14 @@ pkg_install()
     # install the 'readline' python module for GNU readline
     # Note: future versions of this QPKG will take care of upgrade...
 	$CMD_ECHO -e "\n[Installing 'readline' python module...]"
-	$CMD_TAR -xf "lib/python-gnureadline-mod.tar.gz"
-	cd "python-gnureadline-mod"
+	$CMD_TAR -xf "lib/python-gnureadline-master.tar.gz"
+	cd "python-gnureadline-master"
 	export RL_PATH="$PREFIX_BUILD"
 	$CMD_PYTHON "setup.py" install
 	cd ..
 	
 	# cleanup
-	$CMD_RM -rf "python-gnureadline-mod"
+	$CMD_RM -rf "python-gnureadline-master"
 	
 	# install/upgrade Coldsweat dependencies
 	$CMD_TAR xf "lib/coldsweat-0.9.7.tar.gz"
