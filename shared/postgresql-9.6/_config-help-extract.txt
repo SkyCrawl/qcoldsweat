@@ -1,0 +1,46 @@
+`configure' configures PostgreSQL 9.6.2 to adapt to many kinds of systems.
+
+Usage: ./configure [OPTION]... [VAR=VALUE]...
+
+To assign environment variables (e.g., CC, CFLAGS...), specify them as
+VAR=VALUE.  See below for descriptions of some of the useful variables.
+
+Installation directories:
+  --prefix=PREFIX         install architecture-independent files in PREFIX
+                          [/usr/local/pgsql]
+
+By default, `make install' will install all the files in
+`/usr/local/pgsql/bin', `/usr/local/pgsql/lib' etc.  You can specify
+an installation prefix other than `/usr/local/pgsql' using `--prefix',
+for instance `--prefix=$HOME'.
+
+Optional Packages:
+  --with-includes=DIRS    look for additional header files in DIRS
+  --with-libraries=DIRS   look for additional libraries in DIRS
+  --with-pgport=PORTNUM   set default port number [5432]
+  --with-perl             build Perl modules (PL/Perl)
+  --with-python           build Python modules (PL/Python)
+  --with-pam              build with PAM support
+  --with-openssl          build with OpenSSL support
+  --with-systemd          build with systemd support
+  --with-libxml           build with XML support
+  --with-libxslt          use XSLT support when building contrib/xml2
+
+Some influential environment variables:
+  CC          C compiler command
+  CFLAGS      C compiler flags
+  LDFLAGS     linker flags, e.g. -L<lib dir> if you have libraries in a
+              nonstandard directory <lib dir>
+  LIBS        libraries to pass to the linker, e.g. -l<library>
+  CPPFLAGS    (Objective) C/C++ preprocessor flags, e.g. -I<include dir> if
+              you have headers in a nonstandard directory <include dir>
+  CPP         C preprocessor
+  LDFLAGS_EX  extra linker flags for linking executables only
+  LDFLAGS_SL  extra linker flags for linking shared libraries only
+  DOCBOOKSTYLE
+              location of DocBook stylesheets
+
+Use these variables to override the choices made by `configure' or to help
+it to find libraries and programs with nonstandard names/locations.
+
+Report bugs to <pgsql-bugs@postgresql.org>.
