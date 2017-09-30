@@ -7,7 +7,7 @@ Features:
 	* This is a design choice that allows vital data (most importantly configuration and database) to be preserved even if you remove the QPKG or upgrade to a newer version.
 * Commitment for longterm support.
 	* I'm using the QPKG myself and don't expect to move to any alternative as Coldsweat is only getting better and the authors seem quite reliable regarding the application's future.
-* Tested on TS-212 and TS-251.
+* Tested on TS-269L and TS-251.
 
 Known limitations:
 * Sadly, no SSL/TLS yet (only plain http). Ergo, not too suitable for remote access if you care about your privacy. Should you really want/need this, however, let me know - I might be able to do something about it.
@@ -20,23 +20,30 @@ Alternatively, Coldsweat can be installed via Docker but I don't think it's goin
 ## Requirements
 
 * QNAP firmware (QTS) v4.x (minimum v4.1.0).
-* [Entware-ng](https://github.com/Entware-for-kernel-3x/Entware-ng-3x/wiki/Install-on-QNAP-NAS) (minimum v0.99).
+* [Entware-3x](https://github.com/Entware-for-kernel-3x/Entware-ng-3x/wiki/Install-on-QNAP-NAS) (minimum v0.99).
+	* If you have a problem installing Entware, please navigate [here](https://forum.qnap.com/viewtopic.php?t=124894).
 
 ## Installation
 
 Very simple:
 
-1. Download and install QColdsweat from the [build](https://github.com/qnap-pack-man/qcoldsweat/tree/master/build) folder.
-    * __Note:__ first click on the target QPKG and then hit the `Download` button.
-2. Login to your QNAP, open App Center, click on the cog icon (top right corner), navigate to the QPKG and confirm.
-	* If you can't install Entware for some reason, navigate [here](https://forum.qnap.com/viewtopic.php?t=124894).
-3. __NOTE: Installation is a little network intensive and even compiles some software so it may take up to 15 minutes or more to finish! Please be patient :).__
-4. Open `http://<host-or-ip-address-of-your-qnap>:3333` in your browser and login as `coldsweat`, with `coldsweat` as password.
-5. __IMPORTANT: Change the default password through the left menu__.
-6. Either start trying it out or head over to [the official GitHub page](https://github.com/passiomatic/coldsweat) to learn more. I recommend paying attention to the combination of Fever API and client applications.
+1. Download the QPKG from [build](https://github.com/qnap-pack-man/qcoldsweat/tree/master/build) folder.
+    * __Hint:__ click on the target QPKG and then hit the `Download` button.
+2. Login to your QNAP, open App Center and install the QPKG.
+	* __Hint:__ click on the "Install manually" icon in the top right corner.
+3. Open `http://<host-or-ip-address-of-your-qnap>:3333` in your browser and login:
+	* Username: `coldsweat`.
+	* Password: `coldsweat`.
+4. __IMPORTANT: change the default password through the left menu!__
+5. Either start trying it out or head over to [the official GitHub page](https://github.com/passiomatic/coldsweat) to learn more. I recommend paying attention to Fever API and client applications.
 
 __Useful hints:__
 * Speaking of Fever API, you actually authenticate to Coldsweat with an email. In case of the default account, that means `coldsweat@my-qnap.com`. No worries, you don't need real access to the email for anything. You can always create your own account anyway.
+* At the time of writing, QColdsweat is incompatible with alternative installation of Entware-3x by default. I've asked the author to fix this but you can also do it yourselves by editing the `/etc/config/qpkg.conf` file on your QNAP:
+	1. Navigate to the `[Entware-3x]` section.
+	2. Set the value of `Version` field to `0.99` (as opposed to `0.99alt`).
+	3. Add the `Display_Name` field and set its value to `Entware-3x-alt`.
+	4. Restart your QNAP.
 
 __Troubleshooting installation:__  
 In the unlikely case that step 2 or 3 fails and you're sure about the host or IP address, installation most likely failed. Here's what you should do:
@@ -47,15 +54,15 @@ In the unlikely case that step 2 or 3 fails and you're sure about the host or IP
 
 ## Upgrading
 
-1. Open App Center and uninstall the old version of QColdsweat. Don't worry, everything important is preserved.
-2. Install the new version of QColdsweat (see the [installation](#installation) section).
-3. Installation may give you a warning saying: `Configuration file needs to be upgraded manually`. In such an event, you have previously made manual modifications to Coldsweat's configuration file and the program can not upgrade it automatically. Your old configuration file is saved in the [data folder](https://github.com/SkyCrawl/QColdsweat/wiki) (it should be something like `config.5AE3`). I kindly ask you to:
-    1. Merge the saved configuration file with the new one (named `config`).
-    2. SSH into your QNAP and run:
-    ```
-    INSTALL_PATH="$(/sbin/getcfg QColdsweat Install_Path -f /etc/config/qpkg.conf)"
-    python "$INSTALL_PATH/coldsweat/sweat.py" upgrade
-    ```
+1. Open App Center and uninstall the old version.
+	* __Note:__ don't worry, everything important is preserved.
+2. Install the new version (see the [installation](#installation) section).
+
+If you get a warning saying that `configuration file needs to be upgraded manually`, you must have previously made manual modifications to Coldsweat's configuration file and the program can not upgrade it automatically. In such an event, your old configuration file will have been saved in the [data folder](https://github.com/SkyCrawl/QColdsweat/wiki) and I kindly ask you to:
+1. Merge the saved configuration file (e.g. `config.5AE3`) into the new one (named `config`).
+2. SSH into your QNAP and run the following two commands (excluding the initial '$' character):
+    $ INSTALL_PATH="$(/sbin/getcfg QColdsweat Install_Path -f /etc/config/qpkg.conf)"
+    $ python "$INSTALL_PATH/coldsweat/sweat.py" upgrade
 
 ## What you should definitely know about this QPKG
 
@@ -74,7 +81,7 @@ __Finally, I can't stress this enough... always regularly backup your database! 
 	
 ## Dev notes
 
-* It's good to re-install Entware-ng before testing for successful installation of a release candidate.
+* It's good to re-install Entware before testing for successful installation of a release candidate.
 
 ## I'm your ally
 
