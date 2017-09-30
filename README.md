@@ -20,17 +20,16 @@ Alternatively, Coldsweat can be installed via Docker but I don't think it's goin
 ## Requirements
 
 * QNAP firmware (QTS) v4.x (minimum v4.1.0).
-* [Entware-ng](https://github.com/Entware-ng/Entware-ng/wiki/Install-on-QNAP-NAS) (minimum v0.97).
+* [Entware-ng](https://github.com/Entware-for-kernel-3x/Entware-ng-3x/wiki/Install-on-QNAP-NAS) (minimum v0.99).
 
 ## Installation
 
 Very simple:
 
-1. Download/install both Entware-ng and QColdsweat from the [build](https://github.com/qnap-pack-man/qcoldsweat/tree/master/build) folder.
+1. Download and install QColdsweat from the [build](https://github.com/qnap-pack-man/qcoldsweat/tree/master/build) folder.
     * __Note:__ first click on the target QPKG and then hit the `Download` button.
-    * Alternatively download Entware-ng from the [official source](https://github.com/SkyCrawl/QColdsweat/blob/master/build/Entware-ng_0.97.qpkg).
 2. Login to your QNAP, open App Center, click on the cog icon (top right corner), navigate to the QPKG and confirm.
-	* If you can't install Entware for some reason, navigate [here](https://forum.qnap.com/viewtopic.php?f=351&t=116737).
+	* If you can't install Entware for some reason, navigate [here](https://forum.qnap.com/viewtopic.php?t=124894).
 3. __NOTE: Installation is a little network intensive and even compiles some software so it may take up to 15 minutes or more to finish! Please be patient :).__
 4. Open `http://<host-or-ip-address-of-your-qnap>:3333` in your browser and login as `coldsweat`, with `coldsweat` as password.
 5. __IMPORTANT: Change the default password through the left menu__.

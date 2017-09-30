@@ -20,7 +20,7 @@ QPKG_ROOT="$(/sbin/getcfg $QPKG_NAME Install_Path -f $QPKG_CONF)"
 QPKG_PORT="$(/sbin/getcfg $QPKG_NAME Service_Port -f $QPKG_CONF)"
 APP_NAME="Coldsweat"
 
-ENTWARE_NAME="Entware-ng"
+ENTWARE_NAME="Entware-3x"
 ENTWARE_ROOT="$(/sbin/getcfg $ENTWARE_NAME Install_Path -f $QPKG_CONF)"
 
 ## Coldsweat data folder.
@@ -35,7 +35,7 @@ CS_PID_FILE="$CS_DATA_FOLDER/pid"
 # margin if "$ENTWARE_ROOT/bin/python" is used instead. This only happens when
 # disabling the QPKG though - when enabling, the limit seems to be larger. Weird,
 # QNAP... weird. As such, successful launch of Coldsweat depends on previous successful
-# launch of Entware-ng. That's why the RC_NUMBER is set to 102 (Entware-ng is 101).
+# launch of entware. That's why the RC_NUMBER is set to 102 (entware is 101).
 CMD_PYTHON="/opt/bin/python"
 CMD_GREP="/opt/bin/grep"
 

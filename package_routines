@@ -109,8 +109,8 @@
 # REFERENCE OF OUR VARIABLES
 ######################################################################
 
-## Entware-ng dependency QPKG name.
-ENTWARE_NAME="Entware-ng"
+## Entware dependency QPKG name.
+ENTWARE_NAME="Entware-3x"
 CNF_CHKSM_NAME="config-checksum"
 
 ## Installation log file.
@@ -218,9 +218,9 @@ pkg_check_requirement()
 {
 	# the same requirement is specified in 'qpkg.cfg' but it doesn't hurt to really make sure
 	if [ -z "$($CMD_GETCFG $ENTWARE_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)" ]; then
-		err_log "Entware-ng is not installed. See 'https://forum.qnap.com/viewtopic.php?f=351&t=116737'."
+		err_log "$ENTWARE_NAME is not installed. See 'https://github.com/Entware-for-kernel-3x/Entware-ng-3x/wiki/Install-on-QNAP-NAS'."
 	else
-		$CMD_ECHO -e "--- Entware-ng... found"
+		$CMD_ECHO -e "--- $ENTWARE_NAME... found"
     fi
 }
 
@@ -242,7 +242,7 @@ pkg_pre_install()
     $CMD_OPKG update
     $CMD_OPKG upgrade
     $CMD_OPKG install wget curl
-    $CMD_OPKG install python python-pip python-mysql
+    $CMD_OPKG install python python-pip
     $CMD_OPKG --force-overwrite install python-dev
     $CMD_PIP install --upgrade setuptools
 }
@@ -281,11 +281,10 @@ pkg_install()
 	# 2) A proper compiler installed on the system.
 	#
 	# The 'gnureadline' python module is absent from all Python distributions for QNAP that I know
-	# of and 'Entware-ng' is no exception. #1 is absent from QNAP devices as well and entware's
-	# packages (including 'libreadline', which is what we need) only contain shared libraries (not
-	# static), by design, and even don't contain respective include headers needed to compile the
-	# 'gnureadline' python module. Include headers for entware packages can be installed separately
-	# though.
+	# of and entware is no exception. #1 is absent from QNAP devices as well and entware's packages
+	# (including 'libreadline', which is what we need) only contain shared libraries (not static),
+	# by design, and even don't contain respective include headers needed to compile the 'gnureadline'
+	# python module. Include headers for entware packages can be installed separately though.
 	#
 	# So, possible solutions are:
 	#
@@ -444,8 +443,8 @@ EOF
 	$CMD_ECHO -e "--- Backing up configuration file checksum"
 	$CMD_MD5SUM "$CS_DATA_FOLDER/config" | dd count=32 bs=1 2>/dev/null > "$CS_DATA_FOLDER/$CNF_CHKSM_NAME"
 	
-	# patch Entware-ng to always find our own installed software
-	$CMD_ECHO -e "--- Patching Entware-ng to find our own compiled/installed software"
+	# patch entware to always find our own installed software
+	$CMD_ECHO -e "--- Patching $ENTWARE_NAME to find our own compiled/installed software"
 	# Note: use single quotes here so that '$PATH' will not be interpreted
 	$CMD_SED -i 's|^export PATH=.*$|export PATH=/opt/bin:/opt/sbin:/opt/local/bin:$PATH|' "$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/etc/profile"
 	
