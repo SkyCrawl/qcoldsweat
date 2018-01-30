@@ -25,42 +25,45 @@ Alternatively, Coldsweat can be installed via Docker but I don't think it's goin
 
 ## Installation
 
-Very simple:
+Method #1: via QNAP Club:
+1. [Link your App Center with QNAP Club](https://www.qnapclub.eu/en/howto/1).
+2. Install QColdsweat via App Center/QNAP Club.
 
+Method #2: manually (but easily):
 1. Download the QPKG from [build](https://github.com/qnap-pack-man/qcoldsweat/tree/master/build) folder.
     * __Hint:__ click on the target QPKG and then hit the `Download` button.
 2. Login to your QNAP, open App Center and install the QPKG.
 	* __Hint:__ click on the "Install manually" icon in the top right corner.
-3. Open `http://<host-or-ip-address-of-your-qnap>:3333` in your browser and login:
+
+After installation:
+1. Open `http://<host-or-ip-address-of-your-qnap>:3333` in your browser and login:
 	* Username: `coldsweat`.
 	* Password: `coldsweat`.
-4. __IMPORTANT: change the default password through the left menu!__
-5. Either start trying it out or head over to [the official GitHub page](https://github.com/passiomatic/coldsweat) to learn more. I recommend paying attention to Fever API and client applications.
+2. __IMPORTANT: change the default password through the left menu!__
+3. Either start trying it out or head over to [the official GitHub page](https://github.com/passiomatic/coldsweat) to learn more. I recommend paying attention to Fever API and client applications. Speaking of Fever API, you actually authenticate to Coldsweat with an email. By default, that means `coldsweat@my-qnap.com`. No worries, you don't need real access to the email for anything. You can always create your own account anyway.
 
-__Useful hints:__
-* Speaking of Fever API, you actually authenticate to Coldsweat with an email. In case of the default account, that means `coldsweat@my-qnap.com`. No worries, you don't need real access to the email for anything. You can always create your own account anyway.
-* At the time of writing, QColdsweat is incompatible with alternative installation of Entware-3x by default. I've asked the author to fix this but you can also do it yourselves by editing the `/etc/config/qpkg.conf` file on your QNAP:
-	1. Navigate to the `[Entware-3x]` section.
-	2. Set the value of `Version` field to `0.99` (as opposed to `0.99alt`).
-	3. Add the `Display_Name` field and set its value to `Entware-3x-alt`.
-	4. Restart your QNAP.
-
-__Troubleshooting installation:__  
-In the unlikely case that step 2 or 3 fails and you're sure about the host or IP address, installation most likely failed. Here's what you should do:
-
+In the unlikely case that you can't reach the web UI, installation most likely failed. Here's what you should do:
 1. SSH (or sFTP) into your QNAP.
 2. Retrieve the installation log (details over [here](https://github.com/SkyCrawl/coldsweat-qpkg/wiki)).
 3. Submit a new issue here on GitHub and provide me with the log.
 
+Additionally, you should know that at the time of writing, QColdsweat is incompatible with alternative installation of Entware-3x by default. I've asked the author to fix this particular defect but you can also do it yourselves! Simply edit the `/etc/config/qpkg.conf` file on your QNAP:
+1. Navigate to the `[Entware-3x]` section.
+2. Set the value of `Version` field to `0.99` (as opposed to `0.99alt`).
+3. Add the `Display_Name` field and set its value to `Entware-3x-alt`.
+4. Restart your QNAP.
+
 ## Upgrading
 
-1. Open App Center and uninstall the old version.
+1. Open App Center.
+2. Uninstall the current version.
 	* __Note:__ don't worry, everything important is preserved.
-2. Install the new version (see the [installation](#installation) section).
+3. Install the latest version (see the [installation](#installation) section).
 
 If you get a warning saying that `configuration file needs to be upgraded manually`, you must have previously made manual modifications to Coldsweat's configuration file and the program can not upgrade it automatically. In such an event, your old configuration file will have been saved in the [data folder](https://github.com/SkyCrawl/QColdsweat/wiki) and I kindly ask you to:
 1. Merge the saved configuration file (e.g. `config.5AE3`) into the new one (named `config`).
 2. SSH into your QNAP and run the following two commands (excluding the initial '$' character):
+
     $ INSTALL_PATH="$(/sbin/getcfg QColdsweat Install_Path -f /etc/config/qpkg.conf)"
     $ python "$INSTALL_PATH/coldsweat/sweat.py" upgrade
 
