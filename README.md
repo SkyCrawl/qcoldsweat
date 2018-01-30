@@ -63,9 +63,10 @@ Additionally, you should know that at the time of writing, QColdsweat is incompa
 If you get a warning saying that `configuration file needs to be upgraded manually`, you must have previously made manual modifications to Coldsweat's configuration file and the program can not upgrade it automatically. In such an event, your old configuration file will have been saved in the [data folder](https://github.com/SkyCrawl/QColdsweat/wiki) and I kindly ask you to:
 1. Merge the saved configuration file (e.g. `config.5AE3`) into the new one (named `config`).
 2. SSH into your QNAP and run the following two commands (excluding the initial '$' character):
-
-    $ INSTALL_PATH="$(/sbin/getcfg QColdsweat Install_Path -f /etc/config/qpkg.conf)"
-    $ python "$INSTALL_PATH/coldsweat/sweat.py" upgrade
+```
+$ INSTALL_PATH="$(/sbin/getcfg QColdsweat Install_Path -f /etc/config/qpkg.conf)"
+$ python "$INSTALL_PATH/coldsweat/sweat.py" upgrade
+```
 
 ## What you should definitely know about this QPKG
 
