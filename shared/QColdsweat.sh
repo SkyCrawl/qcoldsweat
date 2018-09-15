@@ -20,7 +20,7 @@ QPKG_ROOT="$(/sbin/getcfg $QPKG_NAME Install_Path -f $QPKG_CONF)"
 QPKG_PORT="$(/sbin/getcfg $QPKG_NAME Service_Port -f $QPKG_CONF)"
 APP_NAME="Coldsweat"
 
-ENTWARE_NAME="Entware-3x"
+ENTWARE_NAME="Entware"
 ENTWARE_ROOT="$(/sbin/getcfg $ENTWARE_NAME Install_Path -f $QPKG_CONF)"
 
 ## Coldsweat data folder.
@@ -38,6 +38,9 @@ CS_PID_FILE="$CS_DATA_FOLDER/pid"
 # launch of entware. That's why the RC_NUMBER is set to 102 (entware is 101).
 CMD_PYTHON="/opt/bin/python"
 CMD_GREP="/opt/bin/grep"
+
+# allow "Resource Monitor" to monitor the process
+export QNAP_QPKG=$QPKG_NAME
 
 # a helper function
 function is_coldsweat_running()
@@ -107,7 +110,6 @@ case "$1" in
 		# instances.
 		if [ "$(is_coldsweat_running)" == "1" ]; then
 			echo "Stopping the current instance..."
-			echo "Stopping the current instance..."
 			./$0 stop
 			# Note: doesn't work properly without these additional commands...
 			/bin/sleep 5
@@ -116,7 +118,7 @@ case "$1" in
 		
 		# we should never launch multiple instances
 		if [ "$(is_coldsweat_running)" == "0" ]; then
-			# v0.9.6 contains a bug that prevents Coldsweat from being launched from a different folder...
+			# v0.9.6 to v0.9.7 contains a bug that prevents Coldsweat from being launched from a different folder...
 			cd "$CS_DIST_ROOT"
 			$CMD_PYTHON "sweat.py" serve -r -p "$QPKG_PORT" &> "$CS_LOG_ACCESS" &
 			echo $! > "$CS_PID_FILE"

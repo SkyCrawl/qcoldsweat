@@ -110,7 +110,7 @@
 ######################################################################
 
 ## Entware dependency QPKG name.
-ENTWARE_NAME="Entware-3x"
+ENTWARE_NAME="Entware"
 CNF_CHKSM_NAME="config-checksum"
 
 ## Installation log file.
@@ -218,7 +218,7 @@ pkg_check_requirement()
 {
 	# the same requirement is specified in 'qpkg.cfg' but it doesn't hurt to really make sure
 	if [ -z "$($CMD_GETCFG $ENTWARE_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)" ]; then
-		err_log "$ENTWARE_NAME is not installed. See 'https://github.com/Entware-for-kernel-3x/Entware-ng-3x/wiki/Install-on-QNAP-NAS'."
+		err_log "$ENTWARE_NAME is not installed. See 'https://github.com/Entware/Entware/wiki/Install-on-QNAP-NAS'."
 	else
 		$CMD_ECHO -e "--- $ENTWARE_NAME... found"
     fi
@@ -306,7 +306,7 @@ pkg_install()
 	#
 	# #2 and #3 are obviously good enough. #2 will result in longer installation time but that's the one
 	# I'm going with as it's less work for me.
-	# SEE ALSO: https://github.com/Entware-ng/Entware-ng/wiki/Using-gcc-(native-compilation)
+	# SEE ALSO: https://github.com/Entware/Entware/wiki/Using-GCC-for-native-compilation
 	#
 	
 	$CMD_ECHO -e "\n[Prepare to install GNU readline...]"
@@ -317,7 +317,7 @@ pkg_install()
 
 	# gcc and things we'll need afterwards
 	$CMD_ECHO -e "--- Installing compilation tools"
-	$CMD_OPKG install patch gcc make
+	$CMD_OPKG install libncurses gcc make patch
 	
 	# prepare environment for gcc:
 	$CMD_ECHO -e "--- Preparing environment for compilation"
@@ -444,9 +444,9 @@ EOF
 	$CMD_MD5SUM "$CS_DATA_FOLDER/config" | dd count=32 bs=1 2>/dev/null > "$CS_DATA_FOLDER/$CNF_CHKSM_NAME"
 	
 	# patch entware to always find our own installed software
-	$CMD_ECHO -e "--- Patching $ENTWARE_NAME to find our own compiled/installed software"
+	# $CMD_ECHO -e "--- Patching $ENTWARE_NAME to find our own compiled/installed software"
 	# Note: use single quotes here so that '$PATH' will not be interpreted
-	$CMD_SED -i 's|^export PATH=.*$|export PATH=/opt/bin:/opt/sbin:/opt/local/bin:$PATH|' "$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/etc/profile"
+	# $CMD_SED -i 's|^export PATH=.*$|export PATH=/opt/bin:/opt/sbin:/opt/local/bin:$PATH|' "$SYS_QPKG_INSTALL_PATH/$ENTWARE_NAME/etc/profile"
 	
 	# cleanup
 	$CMD_RM -rf "lib"

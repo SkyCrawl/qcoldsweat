@@ -1,17 +1,20 @@
 # QColdsweat
 
-Provides automatic, smart and convenient installation of [Coldsweat](https://github.com/passiomatic/coldsweat) for owners of QNAP devices. Finally __NOT__ a work under progress :).
+Provides automatic, smart and convenient installation of [Coldsweat](https://github.com/passiomatic/coldsweat) for owners of QNAP devices.
 
 Features:
 * Coldsweat is patched so that application and data can be kept separate.
-	* This is a design choice that allows vital data (most importantly configuration and database) to be preserved even if you remove the QPKG or upgrade to a newer version.
+	- _This is a design choice that allows vital data (most importantly configuration and database) to be preserved even if you remove the QPKG or upgrade to a newer version._
 * Commitment for longterm support.
-	* I'm using the QPKG myself and don't expect to move to any alternative as Coldsweat is only getting better and the authors seem quite reliable regarding the application's future.
+	- _I'm using the QPKG myself and don't expect to move to any alternative as Coldsweat is only getting better and the authors seem quite reliable regarding the application's future._
 * Tested on TS-269L and TS-251.
 
 Known limitations:
-* Sadly, no SSL/TLS yet (only plain http). Ergo, not too suitable for remote access if you care about your privacy. Should you really want/need this, however, let me know - I might be able to do something about it.
-* By default, no automatic feed fetch yet (only manual CLI command to re-fetch feeds). But with [my guide](https://github.com/SkyCrawl/coldsweat-qpkg/wiki/Guide-to-patch-Coldsweat-to-provide-automatic-feed-fetch-feature-via-a-URL), it's easy to manually hotfix Coldsweat to provide the same functionality via a URL - then, you only need to create a bookmarklet (`http://<host-or-ip-address-of-your-qnap>:3333/feeds/fetch`) in your browser :).
+* Sadly, no SSL/TLS yet (only plain http).
+	- _Ergo, not too suitable for remote access if you care about your privacy._
+	- _Should you really want/need this, however, let me know - I might be able to do something about it._
+* By default, no automatic feed fetch yet (only manual CLI command to re-fetch feeds).
+	- _But with [my guide](https://github.com/SkyCrawl/coldsweat-qpkg/wiki/Guide-to-patch-Coldsweat-to-provide-automatic-feed-fetch-feature-via-a-URL), it's easy to manually hotfix Coldsweat to provide the same functionality via a URL - then, you only need to create a bookmarklet (`http://<host-or-ip-address-of-your-qnap>:3333/feeds/fetch`) in your browser :)._
 
 Alternatively, Coldsweat can be installed via Docker but I don't think it's going to be always up to date, super stable, user convenient or without issues:
 * <https://github.com/dannysu/docker-coldsweat>
@@ -20,8 +23,9 @@ Alternatively, Coldsweat can be installed via Docker but I don't think it's goin
 ## Requirements
 
 * QNAP firmware (QTS) v4.x (minimum v4.1.0).
-* [Entware-3x](https://github.com/Entware-for-kernel-3x/Entware-ng-3x/wiki/Install-on-QNAP-NAS) (minimum v0.99).
-	* If you have a problem installing Entware, please navigate [here](https://forum.qnap.com/viewtopic.php?t=124894).
+* [Entware](https://github.com/Entware/Entware/wiki/Install-on-QNAP-NAS) (QPKG) v1.x (minimum v1.00).
+	- Both standard and alternative versions are supported!
+	- If you have a problem installing Entware, please navigate [here](https://forum.qnap.com/viewtopic.php?f=351&t=139781).
 
 ## Installation
 
@@ -47,18 +51,13 @@ In the unlikely case that you can't reach the web UI, installation most likely f
 2. Retrieve the installation log (details over [here](https://github.com/SkyCrawl/coldsweat-qpkg/wiki)).
 3. Submit a new issue here on GitHub and provide me with the log.
 
-Additionally, you should know that at the time of writing, QColdsweat is incompatible with alternative installation of Entware-3x by default. I've asked the author to fix this particular defect but you can also do it yourselves! Simply edit the `/etc/config/qpkg.conf` file on your QNAP:
-1. Navigate to the `[Entware-3x]` section.
-2. Set the value of `Version` field to `0.99` (as opposed to `0.99alt`).
-3. Add the `Display_Name` field and set its value to `Entware-3x-alt`.
-4. Restart your QNAP.
-
 ## Upgrading
 
 1. Open App Center.
 2. Uninstall the current version.
-	* __Note:__ don't worry, everything important is preserved.
+	* __Note:__ don't worry, the important stuff is preserved.
 3. Install the latest version (see the [installation](#installation) section).
+	* __Note:__ at this point, you may have to perform some manual modifications (e.g. the bookmarklet mentioned above) again.
 
 If you get a warning saying that `configuration file needs to be upgraded manually`, you must have previously made manual modifications to Coldsweat's configuration file and the program can not upgrade it automatically. In such an event, your old configuration file will have been saved in the [data folder](https://github.com/SkyCrawl/QColdsweat/wiki) and I kindly ask you to:
 1. Merge the saved configuration file (e.g. `config.5AE3`) into the new one (named `config`).
