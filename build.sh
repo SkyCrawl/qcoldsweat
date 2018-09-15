@@ -215,11 +215,11 @@ USAGE
 # - file-based configuration overrides the system-wide configuration file ("/etc/config/qdk.conf")
 
 # - QDK_SIGN
-#	Should a digital signature be added to the QPKG? Requires 'gpg2' to be installed and available.
+#	Should a signature be added to the QPKG? Requires 'gpg2' to be installed and available.
 # - QDK_GPG_APP
-#	Path to 'gpg2'. Default: 'usr/bin' probably.
+#	Path to 'gpg2'. Default: '/usr/bin' probably.
 # - QDK_GPG_NAME
-#	Identity of private key that shall be used for the digital signature.
+#	Identity of the signer (leading to their private key)
 # - QDK_GPG_PUBKEYRING
 #	Path to public keyring to be used for verifying signatures. Default: '/etc/config/qpkg.gpg'.
 #	Note: in practice, better set it to '/root/.gnupg/pubring.gpg'. QNAP is being funny.
@@ -234,4 +234,4 @@ USAGE
 #	'${QPKG_NAME}_gray.gif' (64x64) - QPKG is disabled.
 
 
-qbuild --strict --verbose --exclude ".git" --exclude ".gitignore" --exclude ".gitkeep" --exclude ".DS_Store" --exclude "README.md" --exclude "build" --exclude "icons/coldsweat_80.artx" --exclude "icons/coldsweat_gray.artx" 
+qbuild --strict --verbose --exclude ".git" --exclude ".gitignore" --exclude ".gitkeep" --exclude ".DS_Store" --exclude "README.md" --exclude "build" --exclude "icons/QColdsweat_80.art3" --exclude "icons/QColdsweat_gray.art3" 
