@@ -14,7 +14,7 @@ Known limitations:
 	- _Ergo, not too suitable for remote access if you care about your privacy._
 	- _Should you really want/need this, however, let me know - I might be able to do something about it._
 * By default, no automatic feed fetch yet (only manual CLI command to re-fetch feeds).
-	- _But with [my guide](https://github.com/SkyCrawl/coldsweat-qpkg/wiki/Guide-to-patch-Coldsweat-to-provide-automatic-feed-fetch-feature-via-a-URL), it's easy to manually hotfix Coldsweat to provide the same functionality via a URL - then, you only need to create a bookmarklet (`http://<host-or-ip-address-of-your-qnap>:3333/feeds/fetch`) in your browser :)._
+	- _But with [my guide](https://github.com/SkyCrawl/qcoldsweat/wiki/Guide-to-patch-Coldsweat-to-provide-automatic-feed-fetch-feature-via-a-URL), it's easy to manually hotfix Coldsweat to provide the same functionality via a URL - then, you only need to create a bookmarklet (`http://<host-or-ip-address-of-your-qnap>:3333/feeds/fetch`) in your browser :)._
 
 Alternatively, Coldsweat can be installed via Docker but I don't think it's going to be always up to date, super stable, user convenient or without issues:
 * <https://github.com/dannysu/docker-coldsweat>
@@ -22,10 +22,7 @@ Alternatively, Coldsweat can be installed via Docker but I don't think it's goin
 
 ## Requirements
 
-* QNAP firmware (QTS) v4.x (minimum v4.1.0).
-* [Entware](https://github.com/Entware/Entware/wiki/Install-on-QNAP-NAS) (QPKG) v1.x (minimum v1.00).
-	- Both standard and alternative versions are supported!
-	- If you have a problem installing Entware, please navigate [here](https://forum.qnap.com/viewtopic.php?f=351&t=139781).
+Documented by each [release](https://github.com/SkyCrawl/qcoldsweat/releases).
 
 ## Installation
 
@@ -33,9 +30,8 @@ Method #1: via QNAP Club:
 1. [Link your App Center with QNAP Club](https://www.qnapclub.eu/en/howto/1).
 2. Install QColdsweat via App Center/QNAP Club.
 
-Method #2: manually (but easily):
-1. Download the QPKG from [build](https://github.com/qnap-pack-man/qcoldsweat/tree/master/build) folder.
-    * __Hint:__ click on the target QPKG and then hit the `Download` button.
+Method #2: manually (but still easily):
+1. Pick a [release](https://github.com/SkyCrawl/qcoldsweat/releases) that would suit you and download the QPKG.
 2. Login to your QNAP, open App Center and install the QPKG.
 	* __Hint:__ click on the "Install manually" icon in the top right corner.
 
@@ -48,7 +44,7 @@ After installation:
 
 In the unlikely case that you can't reach the web UI, installation most likely failed. Here's what you should do:
 1. SSH (or sFTP) into your QNAP.
-2. Retrieve the installation log (details over [here](https://github.com/SkyCrawl/coldsweat-qpkg/wiki)).
+2. Retrieve the installation log (details over [here](https://github.com/SkyCrawl/qcoldsweat/wiki)).
 3. Submit a new issue here on GitHub and provide me with the log.
 
 ## Upgrading
@@ -59,7 +55,7 @@ In the unlikely case that you can't reach the web UI, installation most likely f
 3. Install the latest version (see the [installation](#installation) section).
 	* __Note:__ at this point, you may have to perform some manual modifications (e.g. the bookmarklet mentioned above) again.
 
-If you get a warning saying that `configuration file needs to be upgraded manually`, you must have previously made manual modifications to Coldsweat's configuration file and the program can not upgrade it automatically. In such an event, your old configuration file will have been saved in the [data folder](https://github.com/SkyCrawl/QColdsweat/wiki) and I kindly ask you to:
+If you get a warning saying that `configuration file needs to be upgraded manually`, you must have previously made manual modifications to Coldsweat's configuration file and the program can not upgrade it automatically. In such an event, your old configuration file will have been saved in the [data folder](https://github.com/SkyCrawl/qcoldsweat/wiki) and I kindly ask you to:
 1. Merge the saved configuration file (e.g. `config.5AE3`) into the new one (named `config`).
 2. SSH into your QNAP and run the following two commands (excluding the initial '$' character):
 ```
@@ -72,8 +68,8 @@ $ python "$INSTALL_PATH/coldsweat/sweat.py" upgrade
 The most important thing is the backend database - by default, Coldsweat is backed by a single sqlite3 database image file. While this is the simplest of options (works out-of-the-box), it is not the best. For one thing, sqlite3 has not really been designed with concurrency in mind, i.e. for multiprocessing applications like Coldsweat (if interested, also see [this](http://beets.io/blog/sqlite-nightmare.html) article). Therefore, it is not recommended to use sqlite3 database as a backend indefinitely, especially if you're not going to be the only one using Coldsweat on your QNAP.
 
 Alternatively, Coldsweat works with a MySQL-like databases or PostgreSQL. However, installation is a bit advanced and additional steps are required:
-* [Befriend QColdsweat with a MySQL-like database](https://github.com/SkyCrawl/QColdsweat/wiki/Befriend-QColdsweat-with-a-MySQL-like-database).
-* [Befriend QColdsweat with a PostgreSQL database](https://github.com/SkyCrawl/QColdsweat/wiki/Befriend-QColdsweat-with-a-PostgreSQL-database).
+* [Befriend QColdsweat with a MySQL-like database](https://github.com/SkyCrawl/qcoldsweat/wiki/Befriend-QColdsweat-with-a-MySQL-like-database).
+* [Befriend QColdsweat with a PostgreSQL database](https://github.com/SkyCrawl/qcoldsweat/wiki/Befriend-QColdsweat-with-a-PostgreSQL-database).
 
 __Finally, I can't stress this enough... always regularly backup your database! You never know what issues you may run into and how much valuable data (think saved/starred resources) you may lose. Also notice that although Coldsweat is very stable now, the latest version is `0.9.7` (pre-release) which means that the authors are still not completely confident or feel that the application deserves to be "officially released" yet. With that said, don't be afraid of using the application. I'm using it myself and am happy with it, aside several small issues. This is how to properly back up your database:__
 * [SQLite3](http://stackoverflow.com/questions/25675314/how-to-backup-sqlite-database).

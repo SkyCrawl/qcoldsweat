@@ -47,13 +47,18 @@ function is_coldsweat_running()
 {
 	# basic check
 	if [ ! -f "$CS_PID_FILE" ]; then
-		echo "0"
 		# DEBUG msg: echo "PID file doesn't exist" >> "$LOG_FILE"
+		echo "0"
 		return
 	fi
 
 	# "$()" spawns a new process - must use `` instead (PID would be incorrect otherwise)
 	PID=`cat "$CS_PID_FILE"`
+	if [ -z "$PID" ]; then
+		echo "0"
+		return
+	fi
+	
 	# DEBUG msg: ps | $CMD_GREP -e "^\s*$PID admin.*sweat.py serve.*$" >> "$LOG_FILE"
 	# DEBUG msg: ps >> "$LOG_FILE"
 	PID_INFO=`ps | $CMD_GREP -e "^\s*$PID.*sweat.py serve.*$"`
@@ -120,7 +125,7 @@ case "$1" in
 		if [ "$(is_coldsweat_running)" == "0" ]; then
 			# v0.9.6 to v0.9.7 contains a bug that prevents Coldsweat from being launched from a different folder...
 			cd "$CS_DIST_ROOT"
-			$CMD_PYTHON "sweat.py" serve -r -p "$QPKG_PORT" &> "$CS_LOG_ACCESS" &
+			$CMD_PYTHON sweat.py serve -r -p "$QPKG_PORT" &> "$CS_LOG_ACCESS" &
 			echo $! > "$CS_PID_FILE"
 		else
 			echo "$APP_NAME is already running."
