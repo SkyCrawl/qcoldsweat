@@ -48,14 +48,14 @@ function is_coldsweat_running()
 	# basic check
 	if [ ! -f "$CS_PID_FILE" ]; then
 		# DEBUG msg: echo "PID file doesn't exist" >> "$LOG_FILE"
-		echo "0"
+		/bin/echo "0"
 		return
 	fi
 
 	# "$()" spawns a new process - must use `` instead (PID would be incorrect otherwise)
 	PID=`cat "$CS_PID_FILE"`
 	if [ -z "$PID" ]; then
-		echo "0"
+		/bin/echo "0"
 		return
 	fi
 	
@@ -65,10 +65,10 @@ function is_coldsweat_running()
 	
 	# and finally...
 	if [ -z "$PID_INFO" ]; then
-		echo "0"
+		/bin/echo "0"
 		# DEBUG msg: echo "The $PID PID could not be matched against a running instance" >> "$LOG_FILE"
 	else
-		echo "1"
+		/bin/echo "1"
 	fi
 }
 
@@ -101,10 +101,14 @@ COMMENT
 # perform the given action
 case "$1" in
 	start)
-		# disabled QPKG has no right to start...
-		ENABLED="$(/sbin/getcfg $QPKG_NAME Enable -u -d FALSE -f $QPKG_CONF)"
-		if [ "$ENABLED" != "TRUE" ]; then
-			echo "$QPKG_NAME is disabled."
+		# determine and check status
+		QPKG_ENABLED=$(/sbin/getcfg $QPKG_NAME Enable -u -d FALSE -f $QPKG_CONF)
+		if [ "$QPKG_ENABLED" = "UNKNOWN" ]; then
+			# do enable the QPKG
+			/sbin/setcfg "$QPKG_NAME" Enable TRUE -f "$QPKG_CONF"
+		elif [ "$QPKG_ENABLED" != "TRUE" ]; then
+			# disabled QPKG has no right to start...
+			/bin/echo "$QPKG_NAME is disabled."
 			exit 1
 		fi
 		
@@ -114,7 +118,7 @@ case "$1" in
 		# Luckily, Coldsweat is smart enough to automatically eliminate subsequent running
 		# instances.
 		if [ "$(is_coldsweat_running)" == "1" ]; then
-			echo "Stopping the current instance..."
+			/bin/echo "Stopping the current instance..."
 			./$0 stop
 			# Note: doesn't work properly without these additional commands...
 			/bin/sleep 5
@@ -126,9 +130,9 @@ case "$1" in
 			# v0.9.6 to v0.9.7 contains a bug that prevents Coldsweat from being launched from a different folder...
 			cd "$CS_DIST_ROOT"
 			$CMD_PYTHON sweat.py serve -r -p "$QPKG_PORT" &> "$CS_LOG_ACCESS" &
-			echo $! > "$CS_PID_FILE"
+			/bin/echo $! > "$CS_PID_FILE"
 		else
-			echo "$APP_NAME is already running."
+			/bin/echo "$APP_NAME is already running."
 			exit 1
 		fi
 		;;
@@ -138,9 +142,9 @@ case "$1" in
 		if [ "$(is_coldsweat_running)" == "1" ]; then
 			# "$()" spawns a new process - must use `` instead (PID would be incorrect otherwise)
 			PID=`cat "$CS_PID_FILE"`
-		    kill $PID
+		    /bin/kill $PID
 		else
-			echo "$APP_NAME is not running."
+			/bin/echo "$APP_NAME is not running."
 			exit 1
 		fi
 		;;
@@ -148,9 +152,9 @@ case "$1" in
 	test)
 		# test whether the service is running
 		if [ "$(is_coldsweat_running)" == "1" ]; then
-			echo "$APP_NAME is running."
+			/bin/echo "$APP_NAME is running."
 		else
-			echo "$APP_NAME is NOT running."
+			/bin/echo "$APP_NAME is NOT running."
 		fi
 		;;
 
@@ -163,7 +167,7 @@ case "$1" in
 		;;
 
 	*)
-		echo "Usage: $0 {start|stop|restart|test}"
+		/bin/echo "Usage: $0 {start|stop|restart|test}"
 		exit 1
 esac
 

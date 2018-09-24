@@ -111,7 +111,7 @@
 
 ## Entware dependency QPKG name.
 ENTWARE_NAME="Entware"
-CNF_CHKSM_NAME="config-checksum"
+CNF_CHKSM_NAME="config.checksum"
 
 ## Installation log file.
 QPKG_LOG_FILE="/var/log/coldsweat-install-tmp.log"
@@ -218,7 +218,7 @@ pkg_check_requirement()
 {
 	# the same requirement is specified in 'qpkg.cfg' but it doesn't hurt to really make sure
 	if [ -z "$($CMD_GETCFG $ENTWARE_NAME $SYS_QPKG_CONF_FIELD_NAME -f $SYS_QPKG_CONFIG_FILE)" ]; then
-		err_log "$ENTWARE_NAME is not installed. See 'https://github.com/Entware/Entware/wiki/Install-on-QNAP-NAS'."
+		my_exit "$ENTWARE_NAME is not installed. See 'https://github.com/Entware/Entware/wiki/Install-on-QNAP-NAS'."
 	else
 		$CMD_ECHO -e "--- $ENTWARE_NAME... found"
     fi
@@ -374,24 +374,34 @@ pkg_install()
 	# install/upgrade Coldsweat dependencies
 	$CMD_TAR xf "lib/coldsweat-0.9.7.tar.gz"
 	$CMD_MV "coldsweat-0.9.7" "coldsweat"
-	$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
-	$CMD_PIP install -r "coldsweat/requirements.txt"
-	if [ ! -z "$IS_UPGRADE" ]; then
+	if [ -z "$IS_UPGRADE" ]; then
+		# if package is being installed
+		$CMD_ECHO -e "\n[Installing Coldsweat dependencies...]"
+		$CMD_PIP install -r "coldsweat/requirements.txt"
+	else
 		# if package is being upgraded/downgraded, upgrade Coldsweat's dependencies
 	    $CMD_ECHO -e "\n[Upgrading Coldsweat dependencies...]"
 		$CMD_PIP install -r --upgrade "coldsweat/requirements.txt"
     fi
-
-	# install Coldsweat configuration file
+    
+	# install Coldsweat's configuration file
 	$CMD_ECHO -e "\n[Configuring and patching Coldsweat...]"
-	$CMD_ECHO -e "--- Preparing the configuration file"
+	$CMD_ECHO -e "--- Installing the configuration file"
 	# Note: use external folder so that important files may survive NAS restart or QPKG uninstall
 	# Note: if the external configuration file already exists, back it up using a random sequence
-	CNF_NEW="config"
+	CNF_BACKED_UP=false
 	if [ -f "$CS_DATA_FOLDER/config" ]; then
-		RAND_SEQ=$(openssl rand -hex 4)
-		CNF_NEW="config.$RAND_SEQ"
-		$CMD_MV "$CS_DATA_FOLDER/config" "$CS_DATA_FOLDER/$CNF_NEW"
+		CNF_CHKSM_OLD=$($CMD_CAT "$CS_DATA_FOLDER/$CNF_CHKSM_NAME")
+		CNF_CHKSM_NOW=$($CMD_MD5SUM "$CS_DATA_FOLDER/config" | /bin/dd count=32 bs=1 2>/dev/null)
+		if [ ! -f "$CS_DATA_FOLDER/$CNF_CHKSM_NAME" -o $CNF_CHKSM_OLD != $CNF_CHKSM_NOW ]; then
+			# if manual modifications were made or we don't have a way to compare, backup the old configuration file
+			RAND_SEQ=$(/usr/bin/openssl rand -hex 4)
+			$CMD_MV "$CS_DATA_FOLDER/config" "$CS_DATA_FOLDER/config.$RAND_SEQ"
+			CNF_BACKED_UP=true
+		else
+			# if no manual modifications were made, replace the old configuration file
+			$CMD_RM "$CS_DATA_FOLDER/config"
+		fi
 	fi
 	$CMD_MV "lib/coldsweat-config" "$CS_DATA_FOLDER/config"
 	
@@ -404,30 +414,21 @@ pkg_install()
 	$CMD_ECHO -e "--- Patching Coldsweat to find the configuration file"
 	$CMD_SED -i "s:os.path.join(installation_dir, 'etc/config'):'$CS_DATA_FOLDER/config':" "coldsweat/coldsweat/__init__.py"
 	
-	# sometimes, we could also upgrade the database automatically
+	# sorry but this is going to be a little complicated...
 	if [ ! -z "$IS_UPGRADE" ]; then
-		# if package is being upgraded/downgraded...
-		CNF_CHKSM_NOW=$($CMD_MD5SUM "$CS_DATA_FOLDER/config" | dd count=32 bs=1 2>/dev/null)
-		CNF_CHKSM_OLD=$($CMD_CAT "$CS_DATA_FOLDER/$CNF_CHKSM_NAME")
-		if [ "$CNF_CHKSM_NOW" = "$CNF_CHKSM_OLD" ]; then
-			# if user HASN'T made any modifications to the config file...
-			$CMD_ECHO -e "\n[Upgrading Coldsweat's database...]"
-			# upgrade the database
+		# if package is being upgraded/downgraded (not installed)
+		if [ $CNF_BACKED_UP = false ]; then
+			# if user HASN'T made any modifications to the configuration file
+			$CMD_ECHO -e "--- Automatically upgrading Coldsweat's database..."
 			$CMD_PYTHON "coldsweat/sweat.py" upgrade
-			# and get rid of the previous config file
-			if [ "$CNF_NEW" != "config" ]; then
-				$CMD_RM "$CS_DATA_FOLDER/$CNF_NEW"
-			fi
 		else
-			# if user HAS made Modifications to the config file...
-			warn_log "Configuration file needs to be upgraded manually. See 'https://github.com/SkyCrawl/QColdsweat'."
+			# if user HAS made modifications to the configuration file
+			warn_log "QColdsweat: Some manual actions are needed. Please read 'https://github.com/SkyCrawl/qcoldsweat/tree/0.9.7-3#upgrading'."
 		fi
-	fi
-	
-	# everything's ready to (maybe) init Coldsweat and create a default account
-	if [ -z "$IS_UPGRADE" ] && [ ! -f "$CS_DATA_FOLDER/sqlite.db" ]; then
+	elif [ ! -f "$CS_DATA_FOLDER/sqlite.db" ]; then
 		# if package is being installed (not upgraded/downgraded) AND the database doesn't exist yet
-		$CMD_ECHO -e "--- Creating default account"
+		$CMD_ECHO -e "--- Creating SQLite database and default account..."
+		# create database and a default account
 		# Note: no leading white-spaces on lines between the EOF boundaries
 		$CMD_PYTHON "coldsweat/sweat.py" setup -u "$CS_DEFAULT_USERNAME" <<EOF
 $CS_DEFAULT_EMAIL
@@ -439,9 +440,9 @@ EOF
 	# announce the final phase
 	$CMD_ECHO -e "\n[Finalizing installation...]"
 
-	# backup a checksum of the configuration file now (useful when we're upgrading)
+	# backup a checksum of the configuration file (useful above)
 	$CMD_ECHO -e "--- Backing up configuration file checksum"
-	$CMD_MD5SUM "$CS_DATA_FOLDER/config" | dd count=32 bs=1 2>/dev/null > "$CS_DATA_FOLDER/$CNF_CHKSM_NAME"
+	$CMD_MD5SUM "$CS_DATA_FOLDER/config" | /bin/dd count=32 bs=1 2>/dev/null > "$CS_DATA_FOLDER/$CNF_CHKSM_NAME"
 	
 	# patch entware to always find our own installed software
 	# $CMD_ECHO -e "--- Patching $ENTWARE_NAME to find our own compiled/installed software"
