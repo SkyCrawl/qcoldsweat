@@ -1,4 +1,6 @@
-# QColdsweat
+# QColdsweat (discontinued)
+
+__Discontinued due to Coldsweat itself being discontinued. I started using FreshRSS instead and so far, I'm happy with it. It can also be installed via QNAP Club.__
 
 Provides automatic, smart and convenient installation of [Coldsweat](https://github.com/passiomatic/coldsweat) for owners of QNAP devices.
 
